@@ -25,7 +25,12 @@ DEFAULT_TRADING_DAYS = "0,1,2,3,4"  # Monday=0 ... Sunday=6 (date.weekday() conv
 
 
 def _parse_time(env_var, default):
-    raw = os.environ.get(env_var, default)
+    # `or default`, not the two-arg os.environ.get(key, default): a GitHub
+    # Actions workflow referencing a secret that was never added sets the
+    # env var to an EMPTY STRING, not absent -- the two-arg form would
+    # miss that and crash trying to parse "" as a time (see CLAUDE.md
+    # section 12/project history).
+    raw = os.environ.get(env_var) or default
     hour, minute = (int(x) for x in raw.split(":"))
     return time(hour, minute)
 
@@ -40,7 +45,7 @@ def session_end():
 
 def trading_days():
     """Set of weekday numbers (Monday=0 ... Sunday=6) that count as trading days."""
-    raw = os.environ.get("TRADING_DAYS", DEFAULT_TRADING_DAYS)
+    raw = os.environ.get("TRADING_DAYS") or DEFAULT_TRADING_DAYS
     return {int(x) for x in raw.split(",")}
 
 

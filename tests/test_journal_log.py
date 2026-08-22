@@ -147,3 +147,21 @@ def test_yearly_report_compounds_months_which_compound_weeks(tmp_path, monkeypat
     assert 1.0 in compounded and 0.5 in compounded
     # a +3R month and a -1R month should net out to a small positive compounded return at 1% risk
     assert compounded[1.0] == pytest.approx((1.03 * 0.99 - 1) * 100)
+
+
+def test_oanda_environment_empty_string_falls_back_to_practice(monkeypatch):
+    import src.oanda_client as oanda_client
+
+    monkeypatch.setenv("OANDA_API_KEY", "dummy")
+    monkeypatch.setenv("OANDA_ENVIRONMENT", "")
+
+    captured = {}
+
+    class FakeAPI:
+        def __init__(self, access_token, environment):
+            captured["environment"] = environment
+
+    monkeypatch.setattr(oanda_client, "API", FakeAPI)
+    oanda_client._client()
+
+    assert captured["environment"] == "practice"

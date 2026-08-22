@@ -67,3 +67,15 @@ def test_env_configurable_trading_days_can_be_narrower(monkeypatch):
     monkeypatch.setenv("TRADING_DAYS", "0,1,2")  # Mon-Wed only
     assert is_within_session(_ist(13, 0, day=24)) is True  # Monday
     assert is_within_session(_ist(13, 0, day=27)) is False  # Thursday
+
+
+def test_empty_string_env_vars_fall_back_to_defaults(monkeypatch):
+    # Simulates a GitHub Actions workflow referencing a secret that was
+    # never added -- the env var is set to "" (present, empty), not absent.
+    # The two-arg os.environ.get(key, default) form misses this and crashes.
+    monkeypatch.setenv("SESSION_START", "")
+    monkeypatch.setenv("SESSION_END", "")
+    monkeypatch.setenv("TRADING_DAYS", "")
+
+    assert is_within_session(_ist(13, 0, day=24)) is True  # Monday midday, defaults apply
+    assert is_within_session(_ist(5, 59, day=24)) is False  # still respects the default start

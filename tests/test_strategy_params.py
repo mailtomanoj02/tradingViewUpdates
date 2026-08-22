@@ -31,3 +31,19 @@ def test_per_instrument_env_override(monkeypatch):
 
     assert eurusd == {"amplitude": 25, "channel_deviation": 2.0, "base_risk_mult": 4.0}
     assert xauusd["amplitude"] == DEFAULT_AMPLITUDE, "overriding EURUSD must not affect XAUUSD"
+
+
+def test_empty_string_env_vars_fall_back_to_defaults(monkeypatch):
+    # Same GitHub Actions gotcha as session.py: a referenced-but-unset
+    # secret sets the env var to "" (present, empty), not absent.
+    monkeypatch.setenv("EURUSD_AMPLITUDE", "")
+    monkeypatch.setenv("EURUSD_CHANNEL_DEVIATION", "")
+    monkeypatch.setenv("EURUSD_BASE_RISK_MULT", "")
+
+    params = strategy_params("EURUSD")
+
+    assert params == {
+        "amplitude": DEFAULT_AMPLITUDE,
+        "channel_deviation": DEFAULT_CHANNEL_DEVIATION,
+        "base_risk_mult": DEFAULT_BASE_RISK_MULT,
+    }

@@ -25,17 +25,20 @@ def strategy_params(symbol):
     (e.g. EURUSD_AMPLITUDE, EURUSD_CHANNEL_DEVIATION, EURUSD_BASE_RISK_MULT).
 
     Falls back to the Pine script's declared defaults (CLAUDE.md section 3)
-    for anything not set. Different instruments can be tuned independently
-    without any code change -- just set the matching env var.
+    for anything not set -- including a GitHub Actions workflow referencing
+    a secret that was never added, which sets the env var to an EMPTY
+    STRING rather than leaving it absent, so this uses `... or default`
+    (empty-string-safe), not the two-arg os.environ.get(key, default)
+    (which only catches a fully-absent key).
     """
     prefix = symbol.upper()
     return {
-        "amplitude": int(os.environ.get(f"{prefix}_AMPLITUDE", DEFAULT_AMPLITUDE)),
+        "amplitude": int(os.environ.get(f"{prefix}_AMPLITUDE") or DEFAULT_AMPLITUDE),
         "channel_deviation": float(
-            os.environ.get(f"{prefix}_CHANNEL_DEVIATION", DEFAULT_CHANNEL_DEVIATION)
+            os.environ.get(f"{prefix}_CHANNEL_DEVIATION") or DEFAULT_CHANNEL_DEVIATION
         ),
         "base_risk_mult": float(
-            os.environ.get(f"{prefix}_BASE_RISK_MULT", DEFAULT_BASE_RISK_MULT)
+            os.environ.get(f"{prefix}_BASE_RISK_MULT") or DEFAULT_BASE_RISK_MULT
         ),
     }
 

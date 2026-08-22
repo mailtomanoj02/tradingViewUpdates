@@ -27,7 +27,7 @@ def _client():
     api_key = os.environ.get("OANDA_API_KEY")
     if not api_key:
         raise OandaNotConfigured("OANDA_API_KEY is not set")
-    environment = os.environ.get("OANDA_ENVIRONMENT", "practice")
+    environment = os.environ.get("OANDA_ENVIRONMENT") or "practice"
     return API(access_token=api_key, environment=environment)
 
 
