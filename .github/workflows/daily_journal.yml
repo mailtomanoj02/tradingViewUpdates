@@ -54,7 +54,16 @@ jobs:
           if [ -f journal/daily_log.json ]; then
             git add journal/daily_log.json
             git diff --cached --quiet || git commit -m "Update trade journal log [skip ci]"
-            git push
+            # Retry on push rejection (e.g. an overlapping manual run pushed first) --
+            # rebase onto whatever's new on the remote and try again, a few times.
+            for attempt in 1 2 3; do
+              if git push; then
+                break
+              fi
+              echo "Push failed (attempt $attempt) -- fetching and rebasing, then retrying."
+              git fetch origin main
+              git rebase origin/main
+            done
           else
             echo "No journal/daily_log.json yet (likely a non-trading day, or a session/day skip) -- nothing to commit."
           fi
