@@ -1,0 +1,56 @@
+name: Daily Trade Journal
+
+on:
+  schedule:
+    # Fires every day; the runner itself decides which days actually count
+    # via the configurable TRADING_DAYS (session.py, default Mon-Fri) --
+    # deliberately NOT restricted by day-of-week here, since cron can't
+    # read secrets/env vars and this must keep working if TRADING_DAYS is
+    # ever widened to include Sat/Sun (CLAUDE.md sections 8/12). Default
+    # 21:30 IST session close = 16:00 UTC; if SESSION_END is widened past
+    # that, this time also needs a manual update.
+    - cron: "30 16 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run daily journal
+        env:
+          OANDA_API_KEY: ${{ secrets.OANDA_API_KEY }}
+          OANDA_ENVIRONMENT: ${{ secrets.OANDA_ENVIRONMENT }}
+          SESSION_START: ${{ secrets.SESSION_START }}
+          SESSION_END: ${{ secrets.SESSION_END }}
+          TRADING_DAYS: ${{ secrets.TRADING_DAYS }}
+          EURUSD_AMPLITUDE: ${{ secrets.EURUSD_AMPLITUDE }}
+          EURUSD_CHANNEL_DEVIATION: ${{ secrets.EURUSD_CHANNEL_DEVIATION }}
+          EURUSD_BASE_RISK_MULT: ${{ secrets.EURUSD_BASE_RISK_MULT }}
+          XAUUSD_AMPLITUDE: ${{ secrets.XAUUSD_AMPLITUDE }}
+          XAUUSD_CHANNEL_DEVIATION: ${{ secrets.XAUUSD_CHANNEL_DEVIATION }}
+          XAUUSD_BASE_RISK_MULT: ${{ secrets.XAUUSD_BASE_RISK_MULT }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_RECIPIENT_EMAIL: ${{ secrets.ALERT_RECIPIENT_EMAIL }}
+          ACCOUNT_SIZES: ${{ secrets.ACCOUNT_SIZES }}
+          RISK_PERCENTAGES: ${{ secrets.RISK_PERCENTAGES }}
+        run: python -m src.daily_journal_runner
+
+      - name: Commit updated journal log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add journal/daily_log.json
+          git diff --cached --quiet || git commit -m "Update trade journal log [skip ci]"
+          git push

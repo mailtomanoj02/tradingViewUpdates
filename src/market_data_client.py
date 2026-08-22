@@ -23,7 +23,7 @@ INSTRUMENTS = {
     "EURUSD": {
         "ticker": "EURUSD=X",
         "fetch_interval": "5m",
-        "fetch_period": "7d",
+        "fetch_period": "60d",  # Yahoo's real cap for 5m bars -- the journal's larger lookback needs this headroom
         "fetch_interval_minutes": 5,
         "candle_minutes": 5,
         "price_decimals": 5,
@@ -31,7 +31,7 @@ INSTRUMENTS = {
     "XAUUSD": {
         "ticker": "GC=F",
         "fetch_interval": "1m",
-        "fetch_period": "5d",
+        "fetch_period": "7d",  # Yahoo's real cap for 1m bars
         "fetch_interval_minutes": 1,
         "candle_minutes": 3,
         "price_decimals": 2,

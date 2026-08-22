@@ -2,10 +2,13 @@ name: XAUUSD HalfTrend Check
 
 on:
   schedule:
-    # GitHub Actions cron is UTC-only and not exact-minute -- the runner
-    # itself re-checks the real IST session window (CLAUDE.md sections 2, 7)
-    # before doing anything, so this schedule only needs to comfortably
-    # cover 06:00-21:30 IST (00:30-16:00 UTC), not hit it precisely.
+    # GitHub Actions cron is UTC-only, not exact-minute, and can't read env
+    # vars/secrets -- the runner itself re-checks the real, configurable
+    # SESSION_START/SESSION_END/TRADING_DAYS window (session.py, CLAUDE.md
+    # sections 2/7/8) before doing anything, so this only needs to
+    # comfortably over-cover whatever window is actually configured. Covers
+    # the default 06:00-21:30 IST with room to spare (00:00-16:59 UTC); if
+    # SESSION_START/SESSION_END is ever widened past that, update this too.
     - cron: "*/3 0-16 * * *"
   workflow_dispatch: {}
 
@@ -25,6 +28,9 @@ jobs:
         env:
           OANDA_API_KEY: ${{ secrets.OANDA_API_KEY }}
           OANDA_ENVIRONMENT: ${{ secrets.OANDA_ENVIRONMENT }}
+          SESSION_START: ${{ secrets.SESSION_START }}
+          SESSION_END: ${{ secrets.SESSION_END }}
+          TRADING_DAYS: ${{ secrets.TRADING_DAYS }}
           XAUUSD_AMPLITUDE: ${{ secrets.XAUUSD_AMPLITUDE }}
           XAUUSD_CHANNEL_DEVIATION: ${{ secrets.XAUUSD_CHANNEL_DEVIATION }}
           XAUUSD_BASE_RISK_MULT: ${{ secrets.XAUUSD_BASE_RISK_MULT }}

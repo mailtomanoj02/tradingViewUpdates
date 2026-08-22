@@ -10,6 +10,7 @@ import smtplib
 from email.mime.text import MIMEText
 from zoneinfo import ZoneInfo
 
+from .journal_email import BORDER, CARD_BG, GRAY, GREEN, RED, _wrap
 from .market_data_client import INSTRUMENTS
 from .position_sizing import EURUSD_PIP
 
@@ -109,12 +110,104 @@ def format_body(signal, matrix, source):
     return "\n".join(lines)
 
 
+def format_html_body(signal, matrix, source):
+    """HTML email body -- same content/numbers as format_body, styled to
+    match the trade-journal emails (journal_email.py). Table-based, inline
+    styles only, for consistent rendering across email clients.
+    """
+    symbol = signal["symbol"]
+    if not signal["direction"]:
+        raise ValueError(f"{symbol}: no active signal -- nothing to format")
+
+    cfg = INSTRUMENTS[symbol]
+    decimals = cfg["price_decimals"]
+    entry = signal["entry"]
+    stop_loss = signal["stop_loss"]
+    rr = signal["risk_reward"]
+    direction = signal["direction"]
+    accent = GREEN if direction == "LONG" else RED
+    signal_time_ist = signal["signal_time"].tz_convert(IST)
+
+    header = f"""
+    <div style="background:{accent};border-radius:8px 8px 0 0;padding:20px 24px;">
+      <div style="color:#ffffff;font-size:20px;font-weight:800;">{symbol} {direction} Signal</div>
+      <div style="color:#ffffff;opacity:0.85;font-size:13px;margin-top:4px;">
+        {cfg['candle_minutes']}m &middot; Entry Formed &middot; {signal_time_ist.strftime('%d %b %Y, %I:%M %p IST')}
+      </div>
+      <div style="color:#ffffff;opacity:0.7;font-size:11px;margin-top:6px;">Data Source: {source}</div>
+    </div>
+    """
+
+    def price_row(label, value, note, color=GRAY, bg=None):
+        bg_style = f"background:{bg};" if bg else ""
+        return f"""<tr style="{bg_style}">
+          <td style="padding:10px 12px;font-size:13px;color:{GRAY};border-top:1px solid {BORDER};">{label}</td>
+          <td style="padding:10px 12px;font-size:15px;font-weight:700;text-align:right;border-top:1px solid {BORDER};">{value:.{decimals}f}</td>
+          <td style="padding:10px 12px;font-size:12px;color:{color};text-align:right;border-top:1px solid {BORDER};white-space:nowrap;">{note}</td>
+        </tr>"""
+
+    price_rows = [price_row("Entry", entry, "", bg=CARD_BG)]
+    price_rows.append(price_row("Stop Loss", stop_loss, _price_distance_str(symbol, entry, stop_loss), color=RED))
+    for i in (1, 2, 3):
+        target = signal[f"target{i}"]
+        dist_str = _price_distance_str(symbol, entry, target)
+        price_rows.append(
+            price_row(f"Target {i}", target, f"{dist_str} | R:R 1:{rr[f'target{i}']:.0f}", color=GREEN)
+        )
+
+    atr_str = _distance_str(symbol, _to_display_units(symbol, signal["atr"]))
+
+    pos_headers = ["Account"] + [f"{r:g}%" for r in matrix["risk_percentages"]]
+    pos_header_cells = "".join(
+        f'<th style="text-align:{"left" if i == 0 else "right"};padding:8px 10px;font-size:11px;color:{GRAY};text-transform:uppercase;">{h}</th>'
+        for i, h in enumerate(pos_headers)
+    )
+    pos_rows = []
+    for account in matrix["accounts"]:
+        cells = f'<td style="padding:8px 10px;font-size:13px;color:{GRAY};border-top:1px solid {BORDER};">${account["account_size"]:,.0f}</td>'
+        for risk in account["risks"]:
+            cells += (
+                f'<td style="padding:8px 10px;font-size:13px;text-align:right;border-top:1px solid {BORDER};">'
+                f'{risk["lot_size"]:.2f} lot <span style="color:{GRAY};">(${round(risk["dollar_risk"]):,})</span></td>'
+            )
+        pos_rows.append(f"<tr>{cells}</tr>")
+
+    body = f"""
+    {header}
+    <div style="padding:20px 24px;">
+      <table style="width:100%;border-collapse:collapse;">{"".join(price_rows)}</table>
+
+      <div style="margin-top:16px;background:{CARD_BG};border:1px solid {BORDER};border-radius:8px;padding:12px 16px;font-size:13px;color:{GRAY};">
+        Volatility (ATR): <strong style="color:#0f172a;">{atr_str}</strong> &mdash; {signal['atr_label']} range
+      </div>
+
+      <div style="font-size:13px;font-weight:700;color:{GRAY};text-transform:uppercase;margin:20px 0 4px;">Position Size &amp; Risk — per account</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr>{pos_header_cells}</tr>
+        {"".join(pos_rows)}
+      </table>
+
+      <div style="margin-top:20px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;font-size:13px;color:#92400e;">
+        {SPREAD_CAUTION[symbol]}
+      </div>
+    </div>
+    """
+    return _wrap(body)
+
+
 def send_email(subject, body):
+    _send(subject, MIMEText(body, "plain"))
+
+
+def send_html_email(subject, html_body):
+    _send(subject, MIMEText(html_body, "html"))
+
+
+def _send(subject, msg):
     sender = os.environ["GMAIL_SENDER"]
     password = os.environ["GMAIL_APP_PASSWORD"]
     recipient = os.environ["ALERT_RECIPIENT_EMAIL"]
 
-    msg = MIMEText(body, "plain")
     msg["Subject"] = subject
     msg["From"] = sender
     msg["To"] = recipient
@@ -126,8 +219,8 @@ def send_email(subject, body):
 
 
 def send_signal_alert(signal, matrix, source):
-    """Format and send one alert email for one instrument's signal."""
+    """Format and send one alert email for one instrument's signal (HTML)."""
     subject = format_subject(signal["symbol"], signal["direction"])
-    body = format_body(signal, matrix, source)
-    send_email(subject, body)
-    return subject, body
+    html = format_html_body(signal, matrix, source)
+    send_html_email(subject, html)
+    return subject, html

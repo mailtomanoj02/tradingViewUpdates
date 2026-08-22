@@ -31,7 +31,7 @@ These aren't style preferences. Each one maps to a specific way this kind of sys
 
 - **Read-only market data only.** No order placement, no account modification, ever. This is a notification system wearing a trading-system's clothes — it must never grow the ability to touch a live account, even as a "convenience" feature later.
 - **EURUSD and XAUUSD are never combined into one email.** A trader glancing at a phone notification under time pressure needs to instantly know which instrument and which chart it refers to. A merged email is a misread waiting to happen.
-- **No data fetch, no signal evaluation, no email outside 06:00–21:30 IST.** Not "don't send outside the window" — *don't even look* outside the window. Liquidity and spread behavior outside session hours make signals there unreliable garbage; evaluating them at all invites false confidence.
+- **No data fetch, no signal evaluation, no email outside the configured trading window (default 06:00–21:30 IST, Mon-Fri).** Not "don't send outside the window" — *don't even look* outside the window. Liquidity and spread behavior outside session hours make signals there unreliable garbage; evaluating them at all invites false confidence. The window and trading days are configurable (`SESSION_START`/`SESSION_END`/`TRADING_DAYS`, §10, `session.py`) — the non-negotiable is that *some* window is always enforced before any work happens, not that it's permanently fixed at these specific hours/days.
 - **Signals only on confirmed/closed candles.** Never evaluate or alert on an in-progress bar. A signal that can flip before the bar closes is a repainting indicator — the single fastest way to destroy trust in a trend-following system and blow up an account trading phantom signals.
 - **Stateless per run, no database.** Each scheduled run fetches the latest candle, checks for one signal, and exits. Don't add persistence "to be safe" — it adds failure surface for zero benefit given the requirements.
 - **Fail loud, not silent.** If the data fetch errors (or returns something malformed/empty — `yfinance` will do this, see §7), if email send fails, if the HalfTrend calc throws — let it fail visibly in the GitHub Actions run log. A silently-swallowed exception on a trading alert system means a missed signal nobody knows was missed. That's worse than no system at all, because it creates false confidence that "no email = no signal." **This matters more than usual here**, precisely because the data source is an unofficial API that can degrade without warning — a run must be able to distinguish "checked, no signal" from "couldn't actually check" and make the second one loud.
@@ -236,21 +236,30 @@ Delivery: Gmail SMTP via `smtplib` + `email.mime`, using a Gmail App Password. O
   market_data_client.py    # yfinance wrapper: fetch + validate + retry/backoff, 1m->3m resampling for gold
   oanda_client.py           # OANDA v20 wrapper (optional primary source)
   data_provider.py           # OANDA-primary/yfinance-fallback orchestration, source tagging
-  session.py                  # IST 06:00-21:30 trading-window check
+  session.py                  # configurable trading-window + trading-days check (SESSION_START/END, TRADING_DAYS)
   runner.py                    # shared session -> fetch -> signal -> sizing -> email core
   eurusd_runner.py               # entrypoint: run("EURUSD", "5m")
   xauusd_runner.py                # entrypoint: run("XAUUSD", "3m")
   validate_signals.py              # mandatory validation script (§3) -- also supports --start/--end IST filtering
   health_check.py                   # quick per-provider connectivity check, independent of full warm-up
+  trade_journal.py                   # outcome simulator, aggregation, monthly/yearly compounding (§12)
+  journal_log.py                      # persisted daily log read/write (§12)
+  journal_email.py                     # HTML journal templates (daily/weekly/monthly/yearly)
+  journal_runner.py                     # daily journal job core -- also triggers weekly/monthly/yearly
+  daily_journal_runner.py                # entrypoint: run_daily_journal()
 /.github/workflows
   eurusd_check.yml
   xauusd_check.yml
+  daily_journal.yml
 /tests
   test_halftrend.py, test_signal_context.py, test_strategy_params.py  # strategy engine + R:R/ATR-label + config
   test_position_sizing.py    # worked-example lot sizes (§9)
   test_email_alert.py         # email formatting (pure, no network)
-  test_session.py              # IST window boundary tests
+  test_session.py              # window/trading-days boundary tests
   test_runner.py                 # session/no-signal/signal/error-propagation control flow
+  test_trade_journal.py            # outcome simulator + monthly/yearly compounding (§12)
+  test_journal_log.py               # persisted log read/write
+  test_journal_runner.py             # daily/weekly/monthly/yearly trigger logic
 .env.example
 requirements.txt
 README.md
@@ -281,6 +290,8 @@ Env vars (local `.env`, and matching GitHub repo secrets for deployment).
 |---|---|
 | `OANDA_API_KEY` | optional — OANDA v20 API personal access token. Unset = yfinance-only (§1). Currently set in this deployment. |
 | `OANDA_ENVIRONMENT` | optional — `practice` or `live`, defaults to `practice` |
+| `SESSION_START` / `SESSION_END` | optional — trading window, `HH:MM` IST, default `06:00`/`21:30` (`session.py`). Widening this may also need a manual edit to a workflow's cron (§8) if the new window falls outside what that cron already covers. |
+| `TRADING_DAYS` | optional — comma-separated weekday numbers (Monday=0 ... Sunday=6), default `0,1,2,3,4`. Add `5,6` to include Sat/Sun — used by both the alert session gate and the journal's day/week/month/year boundaries (§12), one shared source of truth. |
 | `EURUSD_AMPLITUDE` / `EURUSD_CHANNEL_DEVIATION` / `EURUSD_BASE_RISK_MULT` | optional HalfTrend overrides for EURUSD, default to Pine defaults (§3) if unset. Currently tuned to `25` / `2` / `4` in this deployment. |
 | `XAUUSD_AMPLITUDE` / `XAUUSD_CHANNEL_DEVIATION` / `XAUUSD_BASE_RISK_MULT` | same, for XAUUSD. Currently tuned to `25` / `2` / `3`. |
 | `GMAIL_SENDER` | sending Gmail address |
@@ -295,12 +306,35 @@ Ask for these only when actually needed for local testing — never ask for secr
 
 ---
 
-## 11. Definition of done
+## 12. Trade Journal (added after the original build spec — read the caveats before touching this)
+
+**This was explicitly out of scope originally.** §2 and §7 both say "no position/PnL tracking" and call scope creep here the way a signal tool turns into an unaudited trading bot. The user asked for it directly and deliberately later — daily/weekly/monthly/yearly emails reporting how each signal actually resolved (direct stop, TP1-then-stop, TP1+TP2-then-stop, or a full TP3 run) plus win rate and % returns. It was built, but every design choice below was a real trade-off discussed and confirmed with the user, not a default — don't casually extend this area without the same care.
+
+**Outcome scoring vs. real PnL — these are two different things, don't conflate them:**
+- `src/trade_journal.py`'s `simulate_trade_outcome()` replicates `reference/halftrend_source.pine`'s own win/loss bookkeeping **exactly** (elif-ordered TP1/TP2/TP3 checks, same-bar ambiguity, and the specific "TP1 hit then later stopped = scratch, cancel both the win and the loss" cancellation rule) — this was a deliberate choice to match the user's existing indicator, quirks included, not independently redesigned.
+- That scheme is a stylized **win/loss counter**, not a PnL model. Touching TP1/TP2 doesn't reduce risk or lock in profit on this system's single non-partial position (there's no breakeven-stop move, no partial size reduction) — so the actual money outcome (`r_multiple`) is always exactly **-1R for a stop, +3R for a full TP3 run, or unresolved** if the trade hasn't closed within the fetched window. A trade can legitimately show as a "win" in the outcome-count stats while contributing exactly -1R to the real PnL (e.g. TP1 touched, then stopped) — that's not a bug, it's the honest consequence of two different, intentionally separate metrics. If this confuses the user in practice, the fix is better labeling, not changing the numbers.
+
+**Storage: a git-committed JSON log, not a real database (for now).** `src/journal_log.py` appends each trading day's closed-trade list to `journal/daily_log.json`, committed back to the repo by the daily workflow. This was a deliberate, discussed trade-off: individual trade detection stays fully recomputed from raw candles every run (no live open-trade tracking between runs, consistent with §2's stateless design) — but the small daily *summaries* need to persist because a genuine monthly/yearly report can't be re-derived from scratch (yfinance retains only ~7 days of 1m / ~60 days of 5m data — CLAUDE.md §3 — and even OANDA would need heavy pagination for a year of 3m candles). If this ever needs to scale beyond a flat file, swap `journal_log.py` for a real DB; nothing above that layer should need to change. The user explicitly agreed to revisit this if/when it needs to scale.
+
+**One job, four cadences.** `src/journal_runner.py`'s `run_daily_journal()` is the only scheduled entrypoint (`.github/workflows/daily_journal.yml`, Mon-Fri only at 21:30 IST — weekends are skipped at both the cron level, `cron: "30 16 * * 1-5"`, and again inside the runner via `is_trading_day()`, since no trading happens Sat/Sun). It always sends the daily email and appends to the log. On the last trading weekday of the week (Friday) it also sends weekly; on the last trading weekday of the month, monthly; on the last trading weekday of December, yearly — one schedule, not four.
+
+**Compounding: simple sum within a period, compound across periods — and it's two levels deep.** Per the user's explicit choice: trades within a single day, and days within a single week, are simple-summed (`aggregate_trades`'s `r_total`). But a **month's return compounds that month's weekly returns**, and a **year's return compounds that year's monthly returns, where each monthly return is itself already the compound of its weeks** (`trade_journal.py`'s `monthly_report`/`yearly_report`) — not a flat sum of the whole year's trades. Getting this two-level structure right matters for correctness; a single-level "just compound everything together" shortcut gives a different (wrong) number.
+
+**"Return by Account," not "Return by Risk Tier."** The first version showed only abstract %-per-risk-tier (defensible since % return is identical across account sizes for a given risk %, avoiding a "which account" ambiguity) — the user asked for actual dollar figures per configured account size instead, matching the account/risk matrix style already used in the alert emails. `journal_email.py`'s `_account_return_table()` shows dollars per account, with the % kept alongside in small text for context. Fully dynamic from `ACCOUNT_SIZES`/`RISK_PERCENTAGES` — no hardcoded shape, same as every other matrix in this project.
+
+**Modules added:** `trade_journal.py` (simulator, aggregation, monthly/yearly compounding), `journal_log.py` (persisted log read/write), `journal_email.py` (HTML templates, daily/period), `journal_runner.py` (the scheduled job), `daily_journal_runner.py` (its entrypoint). Tests: `test_trade_journal.py`, `test_journal_log.py`, `test_journal_runner.py`.
+
+---
+
+## 13. Definition of done
 
 - EURUSD signals email within 5 minutes of formation; XAUUSD within 3 minutes.
 - Each email is separate, correctly labeled, with accurate Entry/SL/3 Targets, R:R per target, signal timestamp, and ATR snapshot.
 - Every email includes a correct lot-size + dollar-risk table across all configured accounts/risk levels.
 - Changing `ACCOUNT_SIZES` or `RISK_PERCENTAGES` updates future emails with zero code changes.
-- No emails outside 06:00–21:30 IST.
+- No emails outside the configured trading window/days (default 06:00–21:30 IST, Mon-Fri; §10, §12).
 - Zero ongoing subscription cost.
 - HalfTrend signals validated against the live TradingView chart before the system is trusted with real trading decisions.
+- Daily journal email sent every trading day after session close, correctly classifying each closed trade (direct stop / TP1-scratch / TP1+TP2 / TP3), and appending to the persisted log.
+- Weekly/monthly/yearly journal emails fire automatically on the correct last-trading-day boundary, with monthly/yearly returns properly two-level compounded (weeks→month, months→year), not flat-summed.
+- "Return by Account" in every journal email reflects real `ACCOUNT_SIZES`/`RISK_PERCENTAGES` config, not a hardcoded shape.
