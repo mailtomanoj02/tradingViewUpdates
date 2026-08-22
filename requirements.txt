@@ -1,0 +1,6 @@
+yfinance
+oandapyV20
+pandas
+numpy
+python-dotenv
+pytest

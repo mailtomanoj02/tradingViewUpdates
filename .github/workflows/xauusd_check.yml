@@ -1,0 +1,36 @@
+name: XAUUSD HalfTrend Check
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC-only and not exact-minute -- the runner
+    # itself re-checks the real IST session window (CLAUDE.md sections 2, 7)
+    # before doing anything, so this schedule only needs to comfortably
+    # cover 06:00-21:30 IST (00:30-16:00 UTC), not hit it precisely.
+    - cron: "*/3 0-16 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run XAUUSD check
+        env:
+          OANDA_API_KEY: ${{ secrets.OANDA_API_KEY }}
+          OANDA_ENVIRONMENT: ${{ secrets.OANDA_ENVIRONMENT }}
+          XAUUSD_AMPLITUDE: ${{ secrets.XAUUSD_AMPLITUDE }}
+          XAUUSD_CHANNEL_DEVIATION: ${{ secrets.XAUUSD_CHANNEL_DEVIATION }}
+          XAUUSD_BASE_RISK_MULT: ${{ secrets.XAUUSD_BASE_RISK_MULT }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          ALERT_RECIPIENT_EMAIL: ${{ secrets.ALERT_RECIPIENT_EMAIL }}
+          ACCOUNT_SIZES: ${{ secrets.ACCOUNT_SIZES }}
+          RISK_PERCENTAGES: ${{ secrets.RISK_PERCENTAGES }}
+        run: python -m src.xauusd_runner

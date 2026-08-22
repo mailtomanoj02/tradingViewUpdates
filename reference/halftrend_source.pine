@@ -1,0 +1,235 @@
+// This work is licensed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
+// https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © Ramesh
+
+// Credit to everget for the original HalfTrend logic
+
+//@version=6
+indicator("HalfTrend Long/Short Signal Engine [Ramesh]", overlay=true, max_labels_count=500)
+
+// ＩＮＰＵＴＳ ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+grp_ht = "HalfTrend Settings"
+amplitude        = input.int(20, "Amplitude", minval=1, group=grp_ht, tooltip="Determines the lookback period for highest highs and lowest lows used in the trend calculation.")
+channelDeviation = input.float(2.0, "Channel Deviation", minval=0.1, step=0.1, group=grp_ht, tooltip="Multiplier for the Average True Range (ATR) to establish the upper and lower channel bands.")
+
+
+grp_risk = "Risk Management"
+baseRiskMult = input.float(3, "Base Risk", step =0.1, group=grp_risk, tooltip="Sets SL distance from HalfTrend line, and TP1 distance from entry. TP2 is 2x, TP3 is 3x.")
+
+grp_dash = "Multi-Asset Scanner"
+sym1 = input.symbol("BINANCE:BTCUSD", "Symbol 1", group=grp_dash, tooltip="First symbol tracked in the multi-asset dashboard.")
+sym2 = input.symbol("BINANCE:ETHUSD", "Symbol 2", group=grp_dash, tooltip="Second symbol tracked in the multi-asset dashboard.")
+sym3 = input.symbol("BINANCE:SOLUSD", "Symbol 3", group=grp_dash, tooltip="Third symbol tracked in the multi-asset dashboard.")
+sym4 = input.symbol("OANDA:EURUSD",   "Symbol 4", group=grp_dash, tooltip="Fourth symbol tracked in the multi-asset dashboard.")
+sym5 = input.symbol("OANDA:XAUUSD",   "Symbol 5", group=grp_dash, tooltip="Fifth symbol tracked in the multi-asset dashboard.")
+
+grp_style = "Style & Colors"
+
+// Inline Group 1: Trends
+channelDeviationUp = input.int(70, "Channel Deviation Transparency", group=grp_style, minval = 0, maxval = 100)
+colorBull   = input.color(color.lime,   "Bullish", inline="trend", group=grp_style, tooltip="")
+colorBear   = input.color(color.red, "Bearish", inline="trend", group=grp_style, tooltip="Primary color for bullish trends, target lines, and dashboard highlights.\nPrimary color for bearish trends and channel bands.")
+
+// Inline Group 2: Trade Lines
+colorEntry  = input.color(color.white,  "Entry", inline="trade", group=grp_style, tooltip="")
+colorTP     = input.color(color.teal,   "Take Profit", inline="trade", group=grp_style, tooltip="")
+colorSL     = input.color(color.red,    "Stop Loss", inline="trade", group=grp_style, tooltip="Color used to mark the active trade entry price.\nColor used for the Take Profit target lines.\nColor used for stop loss lines and short trade text.")
+
+// Inline Group 3: Trade Fills
+colorFillTP = input.color(color.new(color.teal, 80),   "TP Fill", inline="fills", group=grp_style, tooltip="")
+colorFillSL = input.color(color.new(color.red, 60),    "SL Fill", inline="fills", group=grp_style, tooltip="Base color for the Take Profit zone gradient fills.\nBase color for the Stop Loss zone gradient fills.")
+
+// Standard Dash Elements
+colorText   = input.color(color.white,  "Text Color", group=grp_style, tooltip="Base color for labels and dashboard text.")
+colorDashBg = input.color(color.new(color.black, 20), "Dashboard Background", group=grp_style, tooltip="Background color for the dashboard tables.")
+colorDashHd = input.color(color.new(color.gray, 40), "Dashboard Header", group=grp_style, tooltip="Background color for the header rows in the dashboards.")
+colorWin    = input.color(color.green,  "Win Rate High Color", group=grp_style, tooltip="Text color when the win rate is 50% or above.")
+colorLoss   = input.color(color.orange, "Win Rate Low Color", group=grp_style, tooltip="Text color when the win rate falls below 50%.")
+// }
+
+// ＣＡＬＣＵＬＡＴＩＯＮＳ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――{
+// CORE HALFTREND ENGINE
+var int trend = 0
+var int nextTrend = 0
+var float maxLowPrice = low
+var float minHighPrice = high
+var float up = 0.0
+var float down = 0.0
+
+float atrHigh = 0.0
+float atrLow = 0.0
+float arrowUp = na
+float arrowDown = na
+
+// Calculate 100-period ATR divided by 2 as per official parameters
+float atr2 = ta.atr(100) / 2
+float dev = channelDeviation * atr2
+
+// Get the actual high/low price of the swing bar index
+float highPrice = high[math.abs(ta.highestbars(high, amplitude))]
+float lowPrice  = low[math.abs(ta.lowestbars(low, amplitude))]
+
+float highma = ta.sma(high, amplitude)
+float lowma  = ta.sma(low, amplitude)
+
+// Trend Logic Matrix
+if nextTrend == 1
+    maxLowPrice := math.max(lowPrice, maxLowPrice)
+    if highma < maxLowPrice and close < nz(low[1], low)
+        trend := 1
+        nextTrend := 0
+        minHighPrice := highPrice
+else
+    minHighPrice := math.min(highPrice, minHighPrice)
+    if lowma > minHighPrice and close > nz(high[1], high)
+        trend := 0
+        nextTrend := 1
+        maxLowPrice := lowPrice
+
+// Calculate Baseline Paths
+if trend == 0
+    if not na(trend[1]) and trend[1] != 0
+        up := na(down[1]) ? down : down[1]
+        arrowUp := up - atr2
+    else
+        up := na(up[1]) ? maxLowPrice : math.max(maxLowPrice, up[1])
+    atrHigh := up + dev
+    atrLow  := up - dev
+else
+    if not na(trend[1]) and trend[1] != 1
+        down := na(up[1]) ? up : up[1]
+        arrowDown := down + atr2
+    else
+        down := na(down[1]) ? minHighPrice : math.min(minHighPrice, down[1])
+    atrHigh := down + dev
+    atrLow  := down - dev
+
+// Pure HalfTrend Line Selection (trend == 0 is Bullish, trend == 1 is Bearish)
+float htLine = trend == 0 ? up : down
+
+// Signal Generation
+bool buySignal  = trend == 0 and trend[1] == 1 and barstate.isconfirmed
+bool sellSignal = trend == 1 and trend[1] == 0 and barstate.isconfirmed
+
+// RISK MANAGEMENT & TRADE TRACKING
+var float activeSL  = na
+var float activeTP1 = na
+var float activeTP2 = na
+var float activeTP3 = na
+
+var int tradeState = 0 // 0 = Flat, 1 = Long, -1 = Short
+var float entryPx  = na
+var int wins       = 0
+var int losses     = 0
+
+// Track TP hits for rendering checkmarks
+bool longTPHit  = false
+bool shortTPHit = false
+var bool longTPHit1  = false
+var bool shortTPHit1 = false
+
+// Evaluate Active Trade for Exit
+if tradeState == 1
+
+    if not na(activeSL)
+        if high >= activeTP1 // Win counts when ANY profit target hits
+            wins += 1
+            activeTP1 := na
+            longTPHit := true
+            longTPHit1 := true
+        else if high >= activeTP2
+            wins += 1
+            activeTP2 := na
+            longTPHit := true
+        else if high >= activeTP3
+            wins += 1
+            activeTP3 := na
+            longTPHit := true
+            tradeState := 0
+            activeSL := na
+
+
+    if low <= activeSL
+        losses += 1
+
+        tradeState := 0
+        activeSL := na
+
+        if longTPHit1
+            wins -=1
+            losses -= 1
+
+
+
+else if tradeState == -1
+
+    if not na(activeSL)
+        if low <= activeTP1
+            wins += 1
+            activeTP1 := na
+            shortTPHit := true
+            shortTPHit1 := true
+        else if low <= activeTP2
+            wins += 1
+            activeTP2 := na
+            shortTPHit := true
+        else if low <= activeTP3
+            wins += 1
+            activeTP3 := na
+            shortTPHit := true
+            tradeState := 0
+            activeSL := na
+
+
+    if high >= activeSL
+        losses += 1
+        tradeState := 0
+        activeSL := na
+        if shortTPHit1
+            wins -=1
+            losses -= 1
+
+// Execute New Signals & Handle Trend Reversals
+if buySignal
+    longTPHit1 := false
+    float dist = atr2 * baseRiskMult
+    activeSL  := close - dist
+    activeTP1 := close + dist
+    activeTP2 := close + (dist * 2)
+    activeTP3 := close + (dist * 3)
+    tradeState := 1
+    entryPx := close
+
+else if sellSignal
+    // Reversal Exit Check
+
+    shortTPHit1 := false
+    float dist = atr2 * baseRiskMult
+    activeSL  := close + dist
+    activeTP1 := close - dist
+    activeTP2 := close - (dist * 2)
+    activeTP3 := close - (dist * 3)
+    tradeState := -1
+    entryPx := close
+
+// Calculate Current Trade Distance (%)
+float currentDistPct = 0.0
+if tradeState == 1
+    currentDistPct := ((close - entryPx) / entryPx) * 100
+else if tradeState == -1
+    currentDistPct := ((entryPx - close) / entryPx) * 100
+
+// Calculate Win Rate
+int totalTrades = wins + losses
+float winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0.0
+
+// MULTI-ASSET
+t1 = request.security(sym1, timeframe.period, trend)
+t2 = request.security(sym2, timeframe.period, trend)
+t3 = request.security(sym3, timeframe.period, trend)
+t4 = request.security(sym4, timeframe.period, trend)
+t5 = request.security(sym5, timeframe.period, trend)
+// }
+
+// (Plotting / dashboard / win-rate-tracking section omitted from this reference copy —
+//  visualization only, not required for the Python signal-alert port. See CLAUDE.md §3.)
