@@ -40,4 +40,6 @@ jobs:
           ALERT_RECIPIENT_EMAIL: ${{ secrets.ALERT_RECIPIENT_EMAIL }}
           ACCOUNT_SIZES: ${{ secrets.ACCOUNT_SIZES }}
           RISK_PERCENTAGES: ${{ secrets.RISK_PERCENTAGES }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
         run: python -m src.eurusd_runner

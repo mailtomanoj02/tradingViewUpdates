@@ -35,6 +35,21 @@ This is what lets the system send email through your Gmail account without using
 
 A dedicated Gmail address just for this bot (rather than your everyday one) is a reasonable, zero-cost precaution, but not required.
 
+### 2b. (Optional) Telegram notification alongside each email
+
+Email is always the real, complete alert — this is just a quick "check your email" nudge sent alongside it, via the official, free Telegram Bot API. Works for 1-2 individuals, or a real group chat.
+
+1. In Telegram, open a chat with **@BotFather** (Telegram's official bot-creation bot) and send `/newbot`
+2. Follow its prompts: give your bot a display name, then a username ending in `bot` (e.g. `MyTradingAlerts_bot`)
+3. BotFather replies with a token like `123456789:AAExampleTokenHere` — that's your `TELEGRAM_BOT_TOKEN`
+4. Get a **chat id** for each recipient (or a group):
+   - **Individual:** have that person search for your bot's username in Telegram and send it any message (e.g. `/start`)
+   - **Group:** add the bot to the group, then send any message in the group
+   - Then visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates` in a browser (with your real token in place of `<YOUR_TOKEN>`) — you'll see JSON containing `"chat":{"id": ...}`. That number (it'll be negative for a group) is the chat id.
+5. Build `TELEGRAM_CHAT_IDS` as a comma-separated list of every chat id you collected, e.g. `111111111,-100222222222`
+
+This is Telegram's own official Bot API — reliable and instant, no opt-in delay. Even so, if it ever fails, the run still succeeds and the email still goes out; the failure is only logged, never fatal.
+
 ### 3. Set up local testing (optional)
 
 ```
@@ -67,6 +82,8 @@ Go to the repo's **Settings → Secrets and variables → Actions → New reposi
 | `XAUUSD_AMPLITUDE` / `XAUUSD_CHANNEL_DEVIATION` / `XAUUSD_BASE_RISK_MULT` | No | same, for XAUUSD |
 | `SESSION_START` / `SESSION_END` | No | trading window, `HH:MM` IST, defaults to `06:00`/`21:30` |
 | `TRADING_DAYS` | No | comma-separated weekday numbers (Monday=0), defaults to `0,1,2,3,4` (Mon-Fri) |
+| `TELEGRAM_BOT_TOKEN` | No | token from @BotFather (step 2b) |
+| `TELEGRAM_CHAT_IDS` | No | comma-separated chat ids from step 2b, e.g. `111111111,-100222222222` |
 
 All secrets go in the **Secrets** tab, not **Variables** — the workflows reference them as `secrets.*`.
 

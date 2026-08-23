@@ -198,6 +198,8 @@ The account/risk table's header row and every column are generated dynamically f
 
 Delivery: Gmail SMTP via `smtplib` + `email.mime`, using a Gmail App Password. One email per instrument, sent immediately and independently the moment its own signal fires.
 
+**Optional Telegram companion notification (`src/telegram_alert.py`):** if `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_IDS` are set, `send_signal_alert()` also sends a short "check your email" nudge via Telegram's official Bot API to 1-2 configured chats (or a real group), after the email has already sent. A WhatsApp route via the unofficial CallMeBot API was tried first and dropped — its per-recipient opt-in message reliably took well over CallMeBot's own stated "~2 minutes" during setup, with no way to distinguish "still queued" from "broken." Telegram's official API has no such opt-in delay and was adopted instead. This notification is explicitly secondary — best-effort, never blocks or fails the run if Telegram errors (logged loudly to stderr instead, same posture as yfinance in §7). Email remains the sole source of truth for the full trade plan; Telegram never carries position sizing or the full target ladder, just direction/entry/stop and a pointer to the email.
+
 ---
 
 ## 7. Trader's hard-won caveats (read before writing the email/sizing/ATR code)
@@ -299,6 +301,7 @@ Env vars (local `.env`, and matching GitHub repo secrets for deployment).
 | `ALERT_RECIPIENT_EMAIL` | where alerts go |
 | `ACCOUNT_SIZES` | comma-separated, e.g. `6000,10000,25000` |
 | `RISK_PERCENTAGES` | comma-separated, e.g. `0.5,0.75,1` |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_IDS` | optional — Telegram Bot API token (from @BotFather) and a comma-separated list of chat ids for the companion nudge (§6), e.g. `111111111,-100222222222`. Either unset = feature disabled. |
 
 The "currently tuned to" values above are a snapshot of this deployment's `.env`, not a permanent fact — if you change them later, treat this table as stale and check `.env` directly rather than trusting this note.
 

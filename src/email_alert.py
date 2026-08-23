@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo
 from .journal_email import BORDER, CARD_BG, GRAY, GREEN, RED, _wrap
 from .market_data_client import INSTRUMENTS
 from .position_sizing import EURUSD_PIP
+from .telegram_alert import format_telegram_message, send_telegram_notification
 
 IST = ZoneInfo("Asia/Kolkata")
 
@@ -219,8 +220,14 @@ def _send(subject, msg):
 
 
 def send_signal_alert(signal, matrix, source):
-    """Format and send one alert email for one instrument's signal (HTML)."""
+    """Format and send one alert email for one instrument's signal (HTML),
+    plus a best-effort Telegram nudge (see telegram_alert.py) if
+    TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_IDS are configured -- a Telegram
+    failure never blocks or fails this, since the email above is the
+    real, guaranteed alert.
+    """
     subject = format_subject(signal["symbol"], signal["direction"])
     html = format_html_body(signal, matrix, source)
     send_html_email(subject, html)
+    send_telegram_notification(format_telegram_message(signal))
     return subject, html
