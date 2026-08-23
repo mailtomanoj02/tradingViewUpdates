@@ -76,13 +76,25 @@ Every value above is read fresh on every run — **change a GitHub secret and it
 
 ## How it runs
 
-Three scheduled GitHub Actions workflows (`.github/workflows/`), fully automatic once the secrets above are set — nothing to start or babysit:
+Three GitHub Actions workflows (`.github/workflows/`), fully automatic once the secrets above are set — nothing to start or babysit:
 
 - **EURUSD HalfTrend Check** — checks every 5 minutes
 - **XAUUSD HalfTrend Check** — checks every 3 minutes
 - **Daily Trade Journal** — runs once/day after session close; also sends weekly/monthly/yearly rollups on the right calendar boundaries
 
-Each one independently re-checks the actual configured trading window before doing anything — the schedule is just an approximate trigger, not the real gate.
+Each one independently re-checks the actual configured trading window before doing anything — the trigger is just what wakes it up, not the real gate.
+
+**Why an external pinger, not GitHub's own cron:** GitHub Actions' built-in `schedule:` trigger is documented as best-effort and gets noticeably delayed at 3-5 minute frequency (we measured 20-90+ minute gaps in production, instead of the configured interval) — GitHub throttles it under load. Since a missed check can mean a missed signal, the EURUSD/XAUUSD workflows are instead triggered externally by a free service, [cron-job.org](https://cron-job.org), calling GitHub's workflow-dispatch API on the real exact schedule — dispatch-triggered runs don't get the same throttling. See `CLAUDE.md` §7/§8 for the full reasoning. If you're setting this up fresh:
+
+1. Create a GitHub **fine-grained personal access token** (github.com/settings/personal-access-tokens/new): repository access limited to just this repo, permission **Actions: Read and write**, nothing else.
+2. In cron-job.org, create two jobs (free tier supports 1-minute intervals):
+   - EURUSD, every 5 minutes: `POST https://api.github.com/repos/mailtomanoj02/tradingViewUpdates/actions/workflows/eurusd_check.yml/dispatches`
+   - XAUUSD, every 3 minutes: `POST https://api.github.com/repos/mailtomanoj02/tradingViewUpdates/actions/workflows/xauusd_check.yml/dispatches`
+   - Headers on both: `Authorization: Bearer <your token>`, `Accept: application/vnd.github+json`, `Content-Type: application/json`
+   - Body on both: `{"ref": "main"}`
+3. The token lives only in cron-job.org's dashboard — never paste it anywhere else.
+
+The Daily Trade Journal keeps its own once-a-day GitHub `schedule:` trigger (imprecision at a once-daily cadence is irrelevant), so it needs no external pinger.
 
 ## How to verify it's working
 

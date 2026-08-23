@@ -1,15 +1,16 @@
 name: EURUSD HalfTrend Check
 
 on:
-  schedule:
-    # GitHub Actions cron is UTC-only, not exact-minute, and can't read env
-    # vars/secrets -- the runner itself re-checks the real, configurable
-    # SESSION_START/SESSION_END/TRADING_DAYS window (session.py, CLAUDE.md
-    # sections 2/7/8) before doing anything, so this only needs to
-    # comfortably over-cover whatever window is actually configured. Covers
-    # the default 06:00-21:30 IST with room to spare (00:00-16:59 UTC); if
-    # SESSION_START/SESSION_END is ever widened past that, update this too.
-    - cron: "*/5 0-16 * * *"
+  # No built-in `schedule:` trigger here on purpose. GitHub Actions'
+  # schedule event is documented as best-effort and gets delayed/dropped
+  # under load -- observed gaps of 20-90+ minutes instead of the
+  # configured 5 minutes (project history). An external precise pinger
+  # (cron-job.org, real every-5-minute schedule) calls this workflow's
+  # dispatch API instead, which GitHub runs promptly since it's a direct
+  # API trigger, not the throttled schedule event. The runner itself
+  # still re-checks the real, configurable SESSION_START/SESSION_END/
+  # TRADING_DAYS window (session.py, CLAUDE.md sections 2/7/8) before
+  # doing anything, so an off-hours ping is still a harmless no-op.
   workflow_dispatch: {}
 
 jobs:
