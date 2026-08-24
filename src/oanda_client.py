@@ -43,7 +43,15 @@ def fetch_candles(symbol, lookback_bars=1000):
         raise ValueError(f"Unknown symbol: {symbol}")
 
     client = _client()
-    params = {"granularity": OANDA_GRANULARITY[symbol], "count": lookback_bars, "price": "M"}
+    # Request a small buffer beyond lookback_bars: OANDA's `count` includes
+    # the current in-progress candle (complete=False), which is always
+    # dropped below (confirmed-candles-only, CLAUDE.md section 2). Requesting
+    # exactly lookback_bars therefore returns lookback_bars-1 closed candles
+    # every single time -- a deterministic off-by-one that was silently
+    # forcing every OANDA fetch to fail validation and fall back to yfinance
+    # in production (caught via real run logs, not assumed).
+    requested = lookback_bars + 5
+    params = {"granularity": OANDA_GRANULARITY[symbol], "count": requested, "price": "M"}
     request = InstrumentsCandles(instrument=OANDA_TICKERS[symbol], params=params)
     client.request(request)
     raw_candles = request.response.get("candles", [])
