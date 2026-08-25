@@ -2,6 +2,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import pytest
 
 from src import journal_runner
 
@@ -108,3 +109,35 @@ def test_month_end_also_sends_monthly(monkeypatch):
     journal_runner.run_daily_journal(now=datetime(2026, 8, 31, 22, 0, tzinfo=IST))  # Mon Aug 31, actual month-end
 
     assert sum("Monthly Trade Journal" in s for s in sent_subjects) == 2
+
+
+def test_one_symbols_failure_does_not_block_the_other_symbols_journal(monkeypatch, capsys):
+    # Project history: a transient OANDA error on XAUUSD crashed the whole
+    # script mid-loop, silently skipping XAUUSD's journal for that day even
+    # though EURUSD's had already been sent -- this reproduces that and
+    # confirms both symbols are now handled independently.
+    def flaky_fetch(symbol, lookback_bars):
+        if symbol == "XAUUSD":
+            raise RuntimeError("Insufficient authorization to perform request.")
+        return _fake_signal_df(), "OANDA"
+
+    monkeypatch.setattr(journal_runner, "fetch_candles", flaky_fetch)
+    monkeypatch.setattr(journal_runner, "strategy_params", lambda s: {})
+    monkeypatch.setattr(journal_runner, "compute_halftrend", lambda df, **k: df)
+    monkeypatch.setattr(journal_runner, "compute_trade_outcomes", lambda *a, **k: [])
+    monkeypatch.setattr(journal_runner, "aggregate_trades", lambda trades: {
+        "total_closed": 0, "wins": 0, "losses": 0, "win_rate": None, "r_total": 0.0, "outcome_counts": {}
+    })
+    monkeypatch.setattr(journal_runner, "append_daily_entry", lambda *a, **k: None)
+    monkeypatch.setattr(journal_runner, "render_daily_email", lambda *a, **k: "<html>daily</html>")
+
+    sent_subjects = []
+    monkeypatch.setattr(journal_runner, "send_html_email", lambda subject, html: sent_subjects.append(subject))
+
+    with pytest.raises(RuntimeError, match="XAUUSD"):
+        journal_runner.run_daily_journal(now=datetime(2026, 8, 19, 22, 0, tzinfo=IST))  # Wednesday
+
+    # EURUSD's daily email still sent despite XAUUSD failing.
+    assert len(sent_subjects) == 1
+    assert "[EURUSD]" in sent_subjects[0]
+    assert "XAUUSD: journal FAILED" in capsys.readouterr().err

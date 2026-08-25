@@ -7,9 +7,21 @@ On the last trading day of the week/month/year, ALSO sends the
 corresponding weekly/monthly/yearly rollup email -- one scheduled job
 covers all four cadences rather than four separate schedules.
 
-Any real error propagates uncaught, same fail-loud rule as runner.py.
+Each instrument is processed independently, wrapped in its own
+try/except -- a fetch/send failure on one symbol must not prevent the
+other symbol's daily (or weekly/monthly/yearly) email from being sent,
+mirroring the same isolation the live-check workflows get from being
+separate GitHub Actions jobs (runner.py). This was a real bug (project
+history): a transient OANDA error on XAUUSD crashed the whole script
+mid-loop, after EURUSD's email had already sent -- silently skipping
+XAUUSD's journal for that day with no separate error surfaced for it.
+Still fail-loud per CLAUDE.md section 2: any per-symbol failure is
+printed immediately, and the run still ends by raising (non-zero exit,
+visible as a failed GitHub Actions run) if anything failed, listing
+every symbol that failed.
 """
 
+import sys
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -68,81 +80,93 @@ def run_daily_journal(now=None):
     accounts = account_sizes()
     date_str = today.isoformat()
 
+    failed_symbols = []
     for symbol, cfg in INSTRUMENTS.items():
-        timeframe = f"{cfg['candle_minutes']}m"
-        params = strategy_params(symbol)
-        df, source = fetch_candles(symbol, lookback_bars=JOURNAL_LOOKBACK_BARS)
-        result = compute_halftrend(df, **params)
-        trades = compute_trade_outcomes(symbol, timeframe, result)
+        try:
+            _run_symbol_journal(symbol, cfg, today, date_str, trading_day_numbers, risks, accounts)
+        except Exception as exc:
+            failed_symbols.append(symbol)
+            print(f"{symbol}: journal FAILED -- {exc}", file=sys.stderr)
 
-        daily_trades = [
-            t for t in trades if t["close_time"] is not None and t["close_time"].tz_convert(IST).date() == today
-        ]
-        open_count = len([t for t in trades if t["r_multiple"] is None])
-        stats = aggregate_trades(daily_trades)
+    if failed_symbols:
+        raise RuntimeError(f"Daily journal failed for: {', '.join(failed_symbols)} (see log above for details)")
 
-        html = render_daily_email(
+
+def _run_symbol_journal(symbol, cfg, today, date_str, trading_day_numbers, risks, accounts):
+    timeframe = f"{cfg['candle_minutes']}m"
+    params = strategy_params(symbol)
+    df, source = fetch_candles(symbol, lookback_bars=JOURNAL_LOOKBACK_BARS)
+    result = compute_halftrend(df, **params)
+    trades = compute_trade_outcomes(symbol, timeframe, result)
+
+    daily_trades = [
+        t for t in trades if t["close_time"] is not None and t["close_time"].tz_convert(IST).date() == today
+    ]
+    open_count = len([t for t in trades if t["r_multiple"] is None])
+    stats = aggregate_trades(daily_trades)
+
+    html = render_daily_email(
+        symbol,
+        timeframe,
+        today.strftime("%d %b %Y (%A)"),
+        stats,
+        open_count,
+        daily_trades,
+        cfg["price_decimals"],
+        risks,
+        accounts,
+    )
+    send_html_email(f"[{symbol}] Daily Trade Journal - {today.strftime('%d %b %Y')}", html)
+    append_daily_entry(date_str, symbol, timeframe, daily_trades)
+    print(f"{symbol}: daily journal sent + logged (source: {source}, {stats['total_closed']} closed, {open_count} open)")
+
+    if _is_week_end(today, trading_day_numbers):
+        week_start = _week_start(today, trading_day_numbers)
+        week_trades = trades_in_range(symbol, week_start.isoformat(), date_str)
+        week_stats = aggregate_trades(week_trades)
+        html = render_period_email(
             symbol,
             timeframe,
-            today.strftime("%d %b %Y (%A)"),
-            stats,
-            open_count,
-            daily_trades,
-            cfg["price_decimals"],
+            "Weekly",
+            f"{week_start.strftime('%d %b')} - {today.strftime('%d %b %Y')}",
+            week_stats,
             risks,
             accounts,
         )
-        send_html_email(f"[{symbol}] Daily Trade Journal - {today.strftime('%d %b %Y')}", html)
-        append_daily_entry(date_str, symbol, timeframe, daily_trades)
-        print(f"{symbol}: daily journal sent + logged (source: {source}, {stats['total_closed']} closed, {open_count} open)")
+        send_html_email(
+            f"[{symbol}] Weekly Trade Journal - {week_start.strftime('%d %b')} to {today.strftime('%d %b %Y')}",
+            html,
+        )
+        print(f"{symbol}: weekly journal sent")
 
-        if _is_week_end(today, trading_day_numbers):
-            week_start = _week_start(today, trading_day_numbers)
-            week_trades = trades_in_range(symbol, week_start.isoformat(), date_str)
-            week_stats = aggregate_trades(week_trades)
-            html = render_period_email(
-                symbol,
-                timeframe,
-                "Weekly",
-                f"{week_start.strftime('%d %b')} - {today.strftime('%d %b %Y')}",
-                week_stats,
-                risks,
-                accounts,
-            )
-            send_html_email(
-                f"[{symbol}] Weekly Trade Journal - {week_start.strftime('%d %b')} to {today.strftime('%d %b %Y')}",
-                html,
-            )
-            print(f"{symbol}: weekly journal sent")
+    if is_last_weekday_of_month(today):
+        overall, compounded, sub_returns = monthly_report(symbol, today.year, today.month, risks)
+        html = render_period_email(
+            symbol,
+            timeframe,
+            "Monthly",
+            today.strftime("%B %Y"),
+            overall,
+            risks,
+            accounts,
+            sub_periods=sub_returns,
+            returns_by_risk=compounded,
+        )
+        send_html_email(f"[{symbol}] Monthly Trade Journal - {today.strftime('%B %Y')}", html)
+        print(f"{symbol}: monthly journal sent")
 
-        if is_last_weekday_of_month(today):
-            overall, compounded, sub_returns = monthly_report(symbol, today.year, today.month, risks)
-            html = render_period_email(
-                symbol,
-                timeframe,
-                "Monthly",
-                today.strftime("%B %Y"),
-                overall,
-                risks,
-                accounts,
-                sub_periods=sub_returns,
-                returns_by_risk=compounded,
-            )
-            send_html_email(f"[{symbol}] Monthly Trade Journal - {today.strftime('%B %Y')}", html)
-            print(f"{symbol}: monthly journal sent")
-
-        if is_last_weekday_of_year(today):
-            overall, compounded, sub_returns = yearly_report(symbol, today.year, risks)
-            html = render_period_email(
-                symbol,
-                timeframe,
-                "Yearly",
-                str(today.year),
-                overall,
-                risks,
-                accounts,
-                sub_periods=sub_returns,
-                returns_by_risk=compounded,
-            )
-            send_html_email(f"[{symbol}] Yearly Trade Journal - {today.year}", html)
-            print(f"{symbol}: yearly journal sent")
+    if is_last_weekday_of_year(today):
+        overall, compounded, sub_returns = yearly_report(symbol, today.year, risks)
+        html = render_period_email(
+            symbol,
+            timeframe,
+            "Yearly",
+            str(today.year),
+            overall,
+            risks,
+            accounts,
+            sub_periods=sub_returns,
+            returns_by_risk=compounded,
+        )
+        send_html_email(f"[{symbol}] Yearly Trade Journal - {today.year}", html)
+        print(f"{symbol}: yearly journal sent")
