@@ -91,6 +91,22 @@ All secrets go in the **Secrets** tab, not **Variables** — the workflows refer
 
 Every value above is read fresh on every run — **change a GitHub secret and it takes effect on the very next scheduled check, no code change, no redeploy.** Add a 4th account size, widen the trading hours, retune the strategy — just edit the secret.
 
+## The active system: Asia Sweep Reversals (Telegram)
+
+As of the latest change, **the live alert system is "Asia Sweep Reversals"**, not HalfTrend. It watches **XAUUSD, EURUSD, GBPUSD, AUDUSD on 1-minute candles**, detects an Asia-session range sweep and a CHoCH reversal entry, and sends **Telegram messages only** (no email) — one for the sweep, one for the entry (full plan: entry, stop, 3 targets at 1R/2R/3R, R:R, ATR, per-account sizing). A daily/weekly/monthly/yearly journal digest also goes to Telegram. Full design record: `CLAUDE.md` §14.
+
+The **HalfTrend** system (EURUSD/XAUUSD email alerts + journal, described in the rest of this README) is **kept but dormant** — its code is untouched and its workflows still exist, they just aren't triggered anymore.
+
+### Setup for Asia Sweep
+
+1. **A dedicated Telegram bot** (separate from any HalfTrend one): message @BotFather, `/newbot`, get the token → repo secret `ASIA_SWEEP_TELEGRAM_BOT_TOKEN`. Add the bot to your group, get the group chat id (negative number) → repo secret `ASIA_SWEEP_TELEGRAM_CHAT_IDS` (comma-separated).
+2. **cron-job.org jobs** (same pattern as below, same GitHub token):
+   - every **1 minute** → `POST https://api.github.com/repos/<owner>/<repo>/actions/workflows/asia_sweep_check.yml/dispatches`, body `{"ref": "main"}`
+   - once **daily** (after 12:00 New York time) → `.../asia_sweep_journal.yml/dispatches`
+   - **Disable / delete the old HalfTrend cron-job.org jobs** — that is what makes HalfTrend dormant.
+3. Optional `ASIA_SWEEP_*` tuning secrets — see `.env.example`. Notably `ASIA_SWEEP_TREND_FILTER` defaults to `false` (a 200-EMA trend filter on 1m suppresses this counter-trend setup almost entirely); set it to `true` for the Pine script's own default.
+4. Local check: `python -m src.health_check` (confirms all 4 pairs fetch at 1m) and `python -m src.validate_asia_sweep --ny-window` (lists recent sweeps/entries to cross-check bar-for-bar against the TradingView "Asia Sweep Reversals" chart before trusting it).
+
 ## How it runs
 
 Three GitHub Actions workflows (`.github/workflows/`), fully automatic once the secrets above are set — nothing to start or babysit:

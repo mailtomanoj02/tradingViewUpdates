@@ -13,6 +13,9 @@ on:
   # doing anything, so an off-hours ping is still a harmless no-op.
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -43,3 +46,20 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_IDS: ${{ secrets.TELEGRAM_CHAT_IDS }}
         run: python -m src.xauusd_runner
+
+      - name: Commit last-alerted marker (only changes when a signal actually fired)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f state/last_alert_xauusd.json ]; then
+            git add state/last_alert_xauusd.json
+            git diff --cached --quiet || git commit -m "Record XAUUSD last-alerted signal [skip ci]"
+            for attempt in 1 2 3; do
+              if git push; then
+                break
+              fi
+              echo "Push failed (attempt $attempt) -- fetching and rebasing, then retrying."
+              git fetch origin main
+              git rebase origin/main
+            done
+          fi

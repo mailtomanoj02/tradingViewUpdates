@@ -1,0 +1,474 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/ MPL-2.0
+//@version=6
+indicator("Asia Sweep Reversals [LuxAlgo]", "Asia Sweep Reversals [LuxAlgo]", overlay = true, max_boxes_count = 100, max_lines_count = 500, max_labels_count = 500)
+
+// --- Constants ---
+const color BLUE_COLOR = #5b9cf6
+const color ORANGE_COLOR = #ffab00
+const string GROUP_SESSION = "Session"
+const string GROUP_STYLE = "Style"
+const string GROUP_SIGNALS = "Sweep Signals"
+const string GROUP_STRUCTURE = "Internal Structure"
+const string GROUP_TRADE = "Trade Risk Boxes"
+const string GROUP_TREND = "Trend Filter"
+
+// --- Inputs ---
+sessionInput = input.session("1900-0400", "Asia session", group = GROUP_SESSION, tooltip = "Session hours in the selected timezone. The default is 7:00 PM to 4:00 AM.")
+timezoneInput = input.string("GMT-5", "Timezone", options = ["GMT-5", "America/New_York", "UTC"], group = GROUP_SESSION, tooltip = "GMT-5 keeps the session fixed to EST. America/New_York follows daylight-saving time.")
+maxSessionsInput = input.int(20, "Historical sessions", minval = 1, maxval = 100, group = GROUP_SESSION, tooltip = "Number of recent Asia session boxes and levels to keep on the chart.")
+
+boxColorInput = input.color(color.new(BLUE_COLOR, 88), "Box fill", group = GROUP_STYLE, tooltip = "Background color of each Asia session range.")
+borderColorInput = input.color(BLUE_COLOR, "Range border", group = GROUP_STYLE, tooltip = "Color of the session box border.")
+midlineColorInput = input.color(ORANGE_COLOR, "Midline", group = GROUP_STYLE, tooltip = "Color of the midpoint between the Asia session high and low.")
+levelWidthInput = input.int(1, "Level width", minval = 1, maxval = 4, group = GROUP_STYLE, tooltip = "Width of the high, low, and midpoint lines.")
+
+showSignalsInput = input.bool(true, "Show sweep signals", group = GROUP_SIGNALS, tooltip = "Display a signal when price takes the completed Asia session high or low.")
+highSweepColorInput = input.color(#f23645, "High sweep color", group = GROUP_SIGNALS, tooltip = "Color of the signal above a swept Asia high.")
+lowSweepColorInput = input.color(#089981, "Low sweep color", group = GROUP_SIGNALS, tooltip = "Color of the signal below a swept Asia low.")
+
+showInternalStructureInput = input.bool(true, "Show internal structure", group = GROUP_STRUCTURE, tooltip = "Display internal BOS and CHoCH events using dotted lines and labels.")
+internalLengthInput = input.int(2, "Internal pivot length", minval = 1, maxval = 10, group = GROUP_STRUCTURE, tooltip = "Number of bars used on each side to confirm an internal swing.")
+internalBreakModeInput = input.string("Close", "Break confirmation", options = ["Close", "Wick"], group = GROUP_STRUCTURE, tooltip = "Close requires a candle close beyond the internal swing. Wick uses the high or low crossing the swing.")
+maxStructureInput = input.int(50, "Historical structure events", minval = 1, maxval = 150, group = GROUP_STRUCTURE, tooltip = "Maximum number of internal BOS and CHoCH lines and labels to retain.")
+bullStructureColorInput = input.color(#089981, "Bullish structure color", group = GROUP_STRUCTURE, tooltip = "Color for bullish BOS and CHoCH events.")
+bearStructureColorInput = input.color(#f23645, "Bearish structure color", group = GROUP_STRUCTURE, tooltip = "Color for bearish BOS and CHoCH events.")
+
+showTradeBoxesInput = input.bool(true, "Show TP/SL boxes", group = GROUP_TRADE, tooltip = "Display risk and reward boxes after the Asia breakout and qualifying CHoCH entry.")
+closeTradeOnNewSessionInput = input.bool(true, "Close active trade at new session", group = GROUP_TRADE, tooltip = "Stops carrying a prior Asia setup into the next Asia session. The active TP/SL boxes end before the new session begins.")
+rewardRiskInput = input.float(2.0, "Take profit R multiple", minval = 0.1, step = 0.1, group = GROUP_TRADE, tooltip = "Take profit distance as a multiple of the entry-to-stop distance. The default is 2R.")
+maxBarsAfterSweepInput = input.int(10, "Maximum bars after sweep", minval = 1, maxval = 500, group = GROUP_TRADE, tooltip = "Maximum number of chart bars allowed between the Asia range sweep and the qualifying CHoCH entry.")
+stopBufferTicksInput = input.int(0, "Stop buffer ticks", minval = 0, maxval = 100, group = GROUP_TRADE, tooltip = "Optional buffer placed beyond the most recent internal swing used for the stop.")
+maxTradeSetupsInput = input.int(25, "Historical trade setups", minval = 1, maxval = 100, group = GROUP_TRADE, tooltip = "Maximum number of completed TP/SL box sets retained on the chart.")
+stopBoxColorInput = input.color(color.new(#f23645, 85), "Stoploss box", group = GROUP_TRADE, tooltip = "Color of the stoploss area between entry and stop.")
+targetBoxColorInput = input.color(color.new(#089981, 85), "Take profit box", group = GROUP_TRADE, tooltip = "Color of the take profit area between entry and target.")
+
+trendFilterEnabledInput = input.bool(true, "Enable trend filter", group = GROUP_TREND, tooltip = "Only allow long entries above the trend EMA and short entries below it.")
+trendLengthInput = input.int(200, "Trend EMA length", minval = 1, group = GROUP_TREND, tooltip = "EMA length used to define the overall trend. The default is 200 bars.")
+showTrendLineInput = input.bool(false, "Show trend EMA", group = GROUP_TREND, tooltip = "Plot the EMA used by the trend filter on the price chart.")
+
+
+// --- Storage ---
+var array<box> sessionBoxArray = array.new<box>()
+var array<line> highLineArray = array.new<line>()
+var array<line> lowLineArray = array.new<line>()
+var array<line> midLineArray = array.new<line>()
+
+var float sessionHigh = na
+var float sessionLow = na
+var box currentBox = na
+var line currentHighLine = na
+var line currentLowLine = na
+var line currentMidLine = na
+
+var array<line> internalLineArray = array.new<line>()
+var array<label> internalLabelArray = array.new<label>()
+var float internalHigh = na
+var float internalLow = na
+var int internalHighBar = na
+var int internalLowBar = na
+var bool internalHighBroken = false
+var bool internalLowBroken = false
+var int internalTrend = 0
+
+var bool asiaHighBroken = false
+var bool asiaLowBroken = false
+var bool highSweepMarked = false
+var bool lowSweepMarked = false
+var bool shortSetupArmed = false
+var bool longSetupArmed = false
+var int asiaHighBreakBar = na
+var int asiaLowBreakBar = na
+var int activeTradeDirection = 0
+var float activeEntryPrice = na
+var float activeStopPrice = na
+var float activeTargetPrice = na
+var box activeStopBox = na
+var box activeTargetBox = na
+var array<box> stopBoxArray = array.new<box>()
+var array<box> targetBoxArray = array.new<box>()
+
+// --- Session State ---
+inSession = not na(time(timeframe.period, sessionInput, timezoneInput))
+sessionBegins = inSession and not inSession[1]
+
+// --- Trend Filter ---
+trendEma = ta.ema(close, trendLengthInput)
+longTrendAllowed = not trendFilterEnabledInput or close > trendEma
+shortTrendAllowed = not trendFilterEnabledInput or close < trendEma
+plot(showTrendLineInput ? trendEma : na, title = "Trend EMA", color = close >= trendEma ? #089981 : #f23645, linewidth = 2)
+
+// --- Session Range Logic ---
+if sessionBegins
+    if closeTradeOnNewSessionInput and activeTradeDirection != 0
+        if showTradeBoxesInput and not na(activeStopBox)
+            box.set_right(activeStopBox, bar_index - 1)
+            box.set_right(activeTargetBox, bar_index - 1)
+        activeTradeDirection := 0
+        activeEntryPrice := na
+        activeStopPrice := na
+        activeTargetPrice := na
+        activeStopBox := na
+        activeTargetBox := na
+
+    asiaHighBroken := false
+    asiaLowBroken := false
+    highSweepMarked := false
+    lowSweepMarked := false
+    shortSetupArmed := false
+    longSetupArmed := false
+    asiaHighBreakBar := na
+    asiaLowBreakBar := na
+
+    // Stop the prior session's levels at the bar immediately before this session.
+    if not na(currentHighLine)
+        line.set_x2(currentHighLine, bar_index - 1)
+        line.set_x2(currentLowLine, bar_index - 1)
+        line.set_x2(currentMidLine, bar_index - 1)
+
+    sessionHigh := high
+    sessionLow := low
+
+    currentBox := box.new(
+         left = bar_index,
+         top = sessionHigh,
+         right = bar_index,
+         bottom = sessionLow,
+         xloc = xloc.bar_index,
+         border_color = borderColorInput,
+         border_width = levelWidthInput,
+         bgcolor = boxColorInput)
+    currentHighLine := line.new(
+         x1 = bar_index,
+         y1 = sessionHigh,
+         x2 = bar_index,
+         y2 = sessionHigh,
+         xloc = xloc.bar_index,
+         color = borderColorInput,
+         style = line.style_dotted,
+         width = levelWidthInput)
+    currentLowLine := line.new(
+         x1 = bar_index,
+         y1 = sessionLow,
+         x2 = bar_index,
+         y2 = sessionLow,
+         xloc = xloc.bar_index,
+         color = borderColorInput,
+         style = line.style_dotted,
+         width = levelWidthInput)
+    currentMidLine := line.new(
+         x1 = bar_index,
+         y1 = (sessionHigh + sessionLow) / 2.0,
+         x2 = bar_index,
+         y2 = (sessionHigh + sessionLow) / 2.0,
+         xloc = xloc.bar_index,
+         color = midlineColorInput,
+         style = line.style_dotted,
+         width = levelWidthInput)
+
+    array.push(sessionBoxArray, currentBox)
+    array.push(highLineArray, currentHighLine)
+    array.push(lowLineArray, currentLowLine)
+    array.push(midLineArray, currentMidLine)
+
+    if array.size(sessionBoxArray) > maxSessionsInput
+        box.delete(array.shift(sessionBoxArray))
+        line.delete(array.shift(highLineArray))
+        line.delete(array.shift(lowLineArray))
+        line.delete(array.shift(midLineArray))
+
+else if inSession and not na(currentBox)
+    sessionHigh := math.max(sessionHigh, high)
+    sessionLow := math.min(sessionLow, low)
+    sessionMid = (sessionHigh + sessionLow) / 2.0
+
+    box.set_right(currentBox, bar_index)
+    box.set_top(currentBox, sessionHigh)
+    box.set_bottom(currentBox, sessionLow)
+
+    line.set_x2(currentHighLine, bar_index)
+    line.set_y1(currentHighLine, sessionHigh)
+    line.set_y2(currentHighLine, sessionHigh)
+    line.set_x2(currentLowLine, bar_index)
+    line.set_y1(currentLowLine, sessionLow)
+    line.set_y2(currentLowLine, sessionLow)
+    line.set_x2(currentMidLine, bar_index)
+    line.set_y1(currentMidLine, sessionMid)
+    line.set_y2(currentMidLine, sessionMid)
+
+else if not na(currentHighLine)
+    // Carry the finished session levels through the following hours until the next session starts.
+    line.set_x2(currentHighLine, bar_index)
+    line.set_x2(currentLowLine, bar_index)
+    line.set_x2(currentMidLine, bar_index)
+
+// --- Asia Breakout Sequence ---
+// A range breakout arms the corresponding CHoCH entry sequence.
+asiaHighBreakSignal = not inSession and not na(sessionHigh) and high > sessionHigh and not asiaHighBroken
+asiaLowBreakSignal = not inSession and not na(sessionLow) and low < sessionLow and not asiaLowBroken
+
+if asiaHighBreakSignal
+    asiaHighBroken := true
+    shortSetupArmed := true
+    asiaHighBreakBar := bar_index
+if asiaLowBreakSignal
+    asiaLowBroken := true
+    longSetupArmed := true
+    asiaLowBreakBar := bar_index
+
+// --- Sweep Signals ---
+// A sweep is a wick taking the completed session level. Each side signals once by default.
+// Mark only the first sweep of each completed Asia high and low.
+highSweepSignal = showSignalsInput and not inSession and not highSweepMarked and not na(sessionHigh) and high > sessionHigh and high[1] <= sessionHigh
+lowSweepSignal = showSignalsInput and not inSession and not lowSweepMarked and not na(sessionLow) and low < sessionLow and low[1] >= sessionLow
+
+if highSweepSignal
+    highSweepMarked := true
+if lowSweepSignal
+    lowSweepMarked := true
+
+plotshape(highSweepSignal, title = "Asia High Sweep", style = shape.triangledown, location = location.abovebar, color = highSweepColorInput, text = "Sweep", textcolor = chart.fg_color, size = size.tiny)
+plotshape(lowSweepSignal, title = "Asia Low Sweep", style = shape.triangleup, location = location.belowbar, color = lowSweepColorInput, text = "Sweep", textcolor = chart.fg_color, size = size.tiny)
+
+alertcondition(highSweepSignal, title = "Asia High Swept", message = "Asia session high swept on {{ticker}} {{interval}}")
+alertcondition(lowSweepSignal, title = "Asia Low Swept", message = "Asia session low swept on {{ticker}} {{interval}}")
+
+// --- Internal Market Structure ---
+internalPivotHigh = ta.pivothigh(high, internalLengthInput, internalLengthInput)
+internalPivotLow = ta.pivotlow(low, internalLengthInput, internalLengthInput)
+
+if not na(internalPivotHigh)
+    internalHigh := internalPivotHigh
+    internalHighBar := bar_index - internalLengthInput
+    internalHighBroken := false
+
+if not na(internalPivotLow)
+    internalLow := internalPivotLow
+    internalLowBar := bar_index - internalLengthInput
+    internalLowBroken := false
+
+bullishInternalBreak = not na(internalHigh) and not internalHighBroken and (internalBreakModeInput == "Wick" ? high > internalHigh : close > internalHigh)
+bearishInternalBreak = not na(internalLow) and not internalLowBroken and (internalBreakModeInput == "Wick" ? low < internalLow : close < internalLow)
+bullishChochSignal = bullishInternalBreak and internalTrend == -1
+bearishChochSignal = bearishInternalBreak and internalTrend == 1
+
+if bullishInternalBreak
+    bullishStructureText = internalTrend == -1 ? "CHoCH" : "BOS"
+    if showInternalStructureInput
+        bullishStructureLine = line.new(
+             x1 = internalHighBar,
+             y1 = internalHigh,
+             x2 = bar_index,
+             y2 = internalHigh,
+             xloc = xloc.bar_index,
+             color = bullStructureColorInput,
+             style = line.style_dotted,
+             width = 1)
+        bullishStructureLabel = label.new(
+             x = int(math.round((internalHighBar + bar_index) / 2.0)),
+             y = internalHigh,
+             text = bullishStructureText,
+             xloc = xloc.bar_index,
+             yloc = yloc.price,
+             style = label.style_label_down,
+             color = color.new(bullStructureColorInput, 100),
+             textcolor = bullStructureColorInput,
+             size = size.tiny)
+        array.push(internalLineArray, bullishStructureLine)
+        array.push(internalLabelArray, bullishStructureLabel)
+
+        if array.size(internalLineArray) > maxStructureInput
+            line.delete(array.shift(internalLineArray))
+            label.delete(array.shift(internalLabelArray))
+
+    internalHighBroken := true
+    internalTrend := 1
+
+if bearishInternalBreak
+    bearishStructureText = internalTrend == 1 ? "CHoCH" : "BOS"
+    if showInternalStructureInput
+        bearishStructureLine = line.new(
+             x1 = internalLowBar,
+             y1 = internalLow,
+             x2 = bar_index,
+             y2 = internalLow,
+             xloc = xloc.bar_index,
+             color = bearStructureColorInput,
+             style = line.style_dotted,
+             width = 1)
+        bearishStructureLabel = label.new(
+             x = int(math.round((internalLowBar + bar_index) / 2.0)),
+             y = internalLow,
+             text = bearishStructureText,
+             xloc = xloc.bar_index,
+             yloc = yloc.price,
+             style = label.style_label_up,
+             color = color.new(bearStructureColorInput, 100),
+             textcolor = bearStructureColorInput,
+             size = size.tiny)
+        array.push(internalLineArray, bearishStructureLine)
+        array.push(internalLabelArray, bearishStructureLabel)
+
+        if array.size(internalLineArray) > maxStructureInput
+            line.delete(array.shift(internalLineArray))
+            label.delete(array.shift(internalLabelArray))
+
+    internalLowBroken := true
+    internalTrend := -1
+
+alertcondition(showInternalStructureInput and bullishInternalBreak, title = "Bullish Internal Structure", message = "Bullish internal BOS or CHoCH on {{ticker}} {{interval}}")
+alertcondition(showInternalStructureInput and bearishInternalBreak, title = "Bearish Internal Structure", message = "Bearish internal BOS or CHoCH on {{ticker}} {{interval}}")
+
+// --- Trade Risk Boxes ---
+longEntrySignal = false
+shortEntrySignal = false
+stopLossHitSignal = false
+takeProfitHitSignal = false
+
+// Manage the active setup. If both levels are reached on one candle, stoploss is prioritized conservatively.
+if activeTradeDirection != 0
+    if showTradeBoxesInput and not na(activeStopBox)
+        box.set_right(activeStopBox, bar_index)
+        box.set_right(activeTargetBox, bar_index)
+
+    stopHit = activeTradeDirection == 1 ? low <= activeStopPrice : high >= activeStopPrice
+    targetHit = activeTradeDirection == 1 ? high >= activeTargetPrice : low <= activeTargetPrice
+    stopLossHitSignal := stopHit
+    takeProfitHitSignal := targetHit and not stopHit
+
+    if stopLossHitSignal or takeProfitHitSignal
+        activeTradeDirection := 0
+        activeEntryPrice := na
+        activeStopPrice := na
+        activeTargetPrice := na
+        activeStopBox := na
+        activeTargetBox := na
+
+// A bearish CHoCH after an Asia high breakout creates a short setup.
+if activeTradeDirection == 0 and not stopLossHitSignal and not takeProfitHitSignal and shortSetupArmed and bar_index > asiaHighBreakBar and bar_index - asiaHighBreakBar <= maxBarsAfterSweepInput and bearishChochSignal and shortTrendAllowed and internalLow > sessionLow and internalLow < sessionHigh and close < sessionHigh and close > sessionLow
+    shortStopPrice = internalHigh + syminfo.mintick * stopBufferTicksInput
+    shortRisk = shortStopPrice - close
+    if shortRisk > 0
+        activeTradeDirection := -1
+        activeEntryPrice := close
+        activeStopPrice := shortStopPrice
+        activeTargetPrice := close - shortRisk * rewardRiskInput
+        shortEntrySignal := true
+        shortSetupArmed := false
+
+        if showTradeBoxesInput
+            activeStopBox := box.new(
+                 left = bar_index,
+                 top = activeStopPrice,
+                 right = bar_index,
+                 bottom = activeEntryPrice,
+                 xloc = xloc.bar_index,
+                 border_color = color.new(#f23645, 35),
+                 bgcolor = stopBoxColorInput,
+                 text = "SL",
+                 text_color = #f23645,
+                 text_size = size.tiny)
+            activeTargetBox := box.new(
+                 left = bar_index,
+                 top = activeEntryPrice,
+                 right = bar_index,
+                 bottom = activeTargetPrice,
+                 xloc = xloc.bar_index,
+                 border_color = color.new(#089981, 35),
+                 bgcolor = targetBoxColorInput,
+                 text = "TP",
+                 text_color = #089981,
+                 text_size = size.tiny)
+            array.push(stopBoxArray, activeStopBox)
+            array.push(targetBoxArray, activeTargetBox)
+
+            if array.size(stopBoxArray) > maxTradeSetupsInput
+                box.delete(array.shift(stopBoxArray))
+                box.delete(array.shift(targetBoxArray))
+
+// A bullish CHoCH after an Asia low breakout creates a long setup.
+if activeTradeDirection == 0 and not stopLossHitSignal and not takeProfitHitSignal and longSetupArmed and bar_index > asiaLowBreakBar and bar_index - asiaLowBreakBar <= maxBarsAfterSweepInput and bullishChochSignal and longTrendAllowed and internalHigh > sessionLow and internalHigh < sessionHigh and close < sessionHigh and close > sessionLow
+    longStopPrice = internalLow - syminfo.mintick * stopBufferTicksInput
+    longRisk = close - longStopPrice
+    if longRisk > 0
+        activeTradeDirection := 1
+        activeEntryPrice := close
+        activeStopPrice := longStopPrice
+        activeTargetPrice := close + longRisk * rewardRiskInput
+        longEntrySignal := true
+        longSetupArmed := false
+
+        if showTradeBoxesInput
+            activeStopBox := box.new(
+                 left = bar_index,
+                 top = activeEntryPrice,
+                 right = bar_index,
+                 bottom = activeStopPrice,
+                 xloc = xloc.bar_index,
+                 border_color = color.new(#f23645, 35),
+                 bgcolor = stopBoxColorInput,
+                 text = "SL",
+                 text_color = #f23645,
+                 text_size = size.tiny)
+            activeTargetBox := box.new(
+                 left = bar_index,
+                 top = activeTargetPrice,
+                 right = bar_index,
+                 bottom = activeEntryPrice,
+                 xloc = xloc.bar_index,
+                 border_color = color.new(#089981, 35),
+                 bgcolor = targetBoxColorInput,
+                 text = "TP",
+                 text_color = #089981,
+                 text_size = size.tiny)
+            array.push(stopBoxArray, activeStopBox)
+            array.push(targetBoxArray, activeTargetBox)
+
+            if array.size(stopBoxArray) > maxTradeSetupsInput
+                box.delete(array.shift(stopBoxArray))
+                box.delete(array.shift(targetBoxArray))
+
+plotshape(shortEntrySignal, title = "Short CHoCH Entry", style = shape.labeldown, location = location.abovebar, color = #f23645, text = "SHORT", textcolor = color.white, size = size.tiny)
+plotshape(longEntrySignal, title = "Long CHoCH Entry", style = shape.labelup, location = location.belowbar, color = #089981, text = "LONG", textcolor = color.white, size = size.tiny)
+
+alertcondition(shortEntrySignal, title = "Short CHoCH Entry", message = "Short entry after Asia high breakout and bearish CHoCH on {{ticker}} {{interval}}")
+alertcondition(longEntrySignal, title = "Long CHoCH Entry", message = "Long entry after Asia low breakout and bullish CHoCH on {{ticker}} {{interval}}")
+alertcondition(stopLossHitSignal, title = "Trade Stoploss Hit", message = "Trade stoploss hit on {{ticker}} {{interval}}")
+alertcondition(takeProfitHitSignal, title = "Trade Take Profit Hit", message = "Trade take profit hit on {{ticker}} {{interval}}")
+
+// One combined alert for every valid sweep or trade entry.
+validSweepOrSetupSignal = highSweepSignal or lowSweepSignal or shortEntrySignal or longEntrySignal
+alertcondition(validSweepOrSetupSignal, title = "Any Valid Sweep or Setup", message = "Valid Asia sweep or trade setup on {{ticker}} {{interval}}")
+
+// ---------------------------------------------------------------------------
+// PORTING NOTES (not part of the original script -- added for the Python port)
+// ---------------------------------------------------------------------------
+// This file is the ground truth for src/asia_sweep.py, exactly as
+// reference/halftrend_source.pine is for src/halftrend.py (CLAUDE.md section 3).
+// Port the SIGNAL LOGIC ONLY. Do NOT port: box/line/label drawing and styling,
+// the trend-EMA plot, the *Array bookkeeping, or the alertcondition() wiring.
+//
+// Port faithfully, quirks included:
+//  * The SHORT entry block gates on `internalLow` being inside the Asia range
+//    (`internalLow > sessionLow and internalLow < sessionHigh`) while the stop
+//    is placed at `internalHigh` (+ buffer). LONG mirrors it (gates on
+//    `internalHigh` in range, stop at `internalLow`). This is the script as
+//    written -- do not "fix" the apparent asymmetry.
+//  * `nextTrend`-style two-variable handoffs don't exist here, but `internalTrend`
+//    (0 / 1 / -1) is a genuine var carried bar-to-bar and must be real loop
+//    state, not recomputed from a window.
+//  * `maxBarsAfterSweepInput` is measured from the BREAKOUT bar
+//    (`asiaHighBreakBar` / `asiaLowBreakBar`), despite the input's name -- the
+//    breakout and the first sweep normally land on the same bar anyway.
+//  * `ta.pivothigh(high, L, L)` confirms a pivot L bars back: when it returns a
+//    value at bar i, that pivot's price is `high[i-L]` and its bar index is
+//    `bar_index - L` (== `internalHighBar`).
+//  * Active-trade gating (one trade at a time; stop prioritized on same-bar
+//    ambiguity; `closeTradeOnNewSessionInput` cancels the active trade at the
+//    next session open) MUST be ported -- it decides which later bars can
+//    produce a new entry, even though stop/TP hits are not alerted live.
+//
+// Deliberate DEVIATION from this script (per the user's spec, CLAUDE.md section
+// 14): the single Pine take-profit (`close +/- risk * rewardRiskInput`, 2R) is
+// replaced in the port by a THREE-target ladder T1/T2/T3 = entry +/- {1,2,3} x R
+// (R = |entry - stop|), matching the HalfTrend alert emails. `rewardRiskInput`
+// is kept as a configurable input for fidelity but is unused by the ladder.

@@ -1,0 +1,71 @@
+name: Asia Sweep Reversals Journal
+
+on:
+  # No built-in `schedule:` -- even at a once-daily cadence GitHub's
+  # schedule event has been observed to no-show for over an hour
+  # (CLAUDE.md section 7). cron-job.org pings this once a day, after the
+  # NY 04:00-12:00 window closes. The runner re-checks the NY trading-day
+  # calendar itself, so an off-day ping is a harmless no-op.
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: asia-sweep-journal
+  cancel-in-progress: false
+
+jobs:
+  journal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Run Asia Sweep journal (daily + period rollups)
+        env:
+          OANDA_API_KEY: ${{ secrets.OANDA_API_KEY }}
+          OANDA_ENVIRONMENT: ${{ secrets.OANDA_ENVIRONMENT }}
+          ACCOUNT_SIZES: ${{ secrets.ACCOUNT_SIZES }}
+          RISK_PERCENTAGES: ${{ secrets.RISK_PERCENTAGES }}
+          ASIA_SWEEP_WINDOW_TZ: ${{ secrets.ASIA_SWEEP_WINDOW_TZ }}
+          ASIA_SWEEP_TRADING_DAYS: ${{ secrets.ASIA_SWEEP_TRADING_DAYS }}
+          ASIA_SWEEP_SESSION: ${{ secrets.ASIA_SWEEP_SESSION }}
+          ASIA_SWEEP_TIMEZONE: ${{ secrets.ASIA_SWEEP_TIMEZONE }}
+          ASIA_SWEEP_INTERNAL_LENGTH: ${{ secrets.ASIA_SWEEP_INTERNAL_LENGTH }}
+          ASIA_SWEEP_BREAK_MODE: ${{ secrets.ASIA_SWEEP_BREAK_MODE }}
+          ASIA_SWEEP_MAX_BARS_AFTER_SWEEP: ${{ secrets.ASIA_SWEEP_MAX_BARS_AFTER_SWEEP }}
+          ASIA_SWEEP_STOP_BUFFER_TICKS: ${{ secrets.ASIA_SWEEP_STOP_BUFFER_TICKS }}
+          ASIA_SWEEP_TREND_FILTER: ${{ secrets.ASIA_SWEEP_TREND_FILTER }}
+          ASIA_SWEEP_TREND_EMA_LENGTH: ${{ secrets.ASIA_SWEEP_TREND_EMA_LENGTH }}
+          ASIA_SWEEP_TARGET_MULTIPLES: ${{ secrets.ASIA_SWEEP_TARGET_MULTIPLES }}
+          ASIA_SWEEP_REWARD_RR: ${{ secrets.ASIA_SWEEP_REWARD_RR }}
+          ASIA_SWEEP_JOURNAL_LOOKBACK_BARS: ${{ secrets.ASIA_SWEEP_JOURNAL_LOOKBACK_BARS }}
+          ASIA_SWEEP_TELEGRAM_BOT_TOKEN: ${{ secrets.ASIA_SWEEP_TELEGRAM_BOT_TOKEN }}
+          ASIA_SWEEP_TELEGRAM_CHAT_IDS: ${{ secrets.ASIA_SWEEP_TELEGRAM_CHAT_IDS }}
+        run: python -m src.asia_sweep_journal_check_runner
+
+      - name: Commit updated journal log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [ -f journal/asia_sweep_daily_log.json ]; then
+            git add journal/asia_sweep_daily_log.json
+            git diff --cached --quiet || git commit -m "Update Asia Sweep journal log [skip ci]"
+            for attempt in 1 2 3; do
+              if git push; then
+                break
+              fi
+              echo "Push failed (attempt $attempt) -- fetching and rebasing, then retrying."
+              git fetch origin main
+              git rebase origin/main
+            done
+          else
+            echo "No journal/asia_sweep_daily_log.json yet (non-trading day, or a skip) -- nothing to commit."
+          fi

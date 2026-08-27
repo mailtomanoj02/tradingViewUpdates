@@ -15,6 +15,7 @@ import time
 from dotenv import load_dotenv
 
 from . import market_data_client, oanda_client
+from .asia_sweep_runner import ASIA_SWEEP_SYMBOLS, ASIA_SWEEP_TIMEFRAME
 from .market_data_client import INSTRUMENTS
 
 load_dotenv()
@@ -22,10 +23,10 @@ load_dotenv()
 CHECK_LOOKBACK_BARS = 5
 
 
-def _check(label, fetch_fn, symbol):
+def _check(label, fetch_fn, symbol, timeframe=None):
     start = time.monotonic()
     try:
-        df = fetch_fn(symbol, lookback_bars=CHECK_LOOKBACK_BARS)
+        df = fetch_fn(symbol, lookback_bars=CHECK_LOOKBACK_BARS, timeframe=timeframe)
         elapsed = time.monotonic() - start
         last = df.iloc[-1]
         print(
@@ -54,9 +55,19 @@ def main():
         oanda_results = [_check("OANDA", oanda_client.fetch_candles, s) for s in INSTRUMENTS]
         oanda_ok = all(oanda_results)
 
+    print("\nAsia Sweep pairs (1m):")
+    provider = oanda_client if os.environ.get("OANDA_API_KEY") else market_data_client
+    provider_label = "OANDA" if provider is oanda_client else "yfinance"
+    asia_results = [
+        _check(provider_label, provider.fetch_candles, s, timeframe=ASIA_SWEEP_TIMEFRAME)
+        for s in ASIA_SWEEP_SYMBOLS
+    ]
+    asia_ok = all(asia_results)
+
     print("\n=== Summary ===")
-    print(f"yfinance : {'OK' if yf_ok else 'FAILING'}")
-    print(f"OANDA    : {'not configured' if oanda_ok is None else ('OK' if oanda_ok else 'FAILING')}")
+    print(f"yfinance    : {'OK' if yf_ok else 'FAILING'}")
+    print(f"OANDA       : {'not configured' if oanda_ok is None else ('OK' if oanda_ok else 'FAILING')}")
+    print(f"Asia Sweep  : {'OK' if asia_ok else 'FAILING'} (1m, {provider_label})")
 
     if not yf_ok and not oanda_ok:
         print("\nBoth providers are failing right now -- the alert system cannot fetch data.")

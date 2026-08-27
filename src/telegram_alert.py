@@ -40,6 +40,12 @@ def chat_ids():
     return [c.strip() for c in raw.split(",") if c.strip()]
 
 
+# Module-level alias so send_telegram_notification can fall back to the
+# HalfTrend env-var chat ids even though its `chat_ids` parameter shadows
+# the function name inside the call.
+_default_chat_ids = chat_ids
+
+
 def format_telegram_message(signal):
     symbol = signal["symbol"]
     decimals = INSTRUMENTS[symbol]["price_decimals"]
@@ -50,20 +56,29 @@ def format_telegram_message(signal):
     )
 
 
-def send_telegram_notification(message):
+def send_telegram_notification(message, token=None, chat_ids=None, parse_mode=None):
     """Best-effort fan-out to every configured chat id. Never raises --
     a failure (bad token, network error, chat hasn't started the bot)
     is printed to stderr so it's visible in the run log, but doesn't
-    fail the run -- the email alert, sent separately before this is
-    called, is the real deliverable.
+    fail the run -- the alert delivered separately (email for HalfTrend,
+    the message itself for Asia Sweep) is the real deliverable.
+
+    `token` / `chat_ids` default to the HalfTrend TELEGRAM_BOT_TOKEN /
+    TELEGRAM_CHAT_IDS env vars. The Asia Sweep system passes its own
+    (separate bot) values explicitly. `parse_mode` (e.g. "HTML") is
+    forwarded to Telegram when given.
     """
-    token = bot_token()
+    token = token if token is not None else bot_token()
     if not token:
         return
+    targets = list(chat_ids) if chat_ids is not None else _default_chat_ids()
 
     url = TELEGRAM_API_URL.format(token=token)
-    for chat_id in chat_ids():
-        payload = json.dumps({"chat_id": chat_id, "text": message}).encode("utf-8")
+    for chat_id in targets:
+        body = {"chat_id": chat_id, "text": message}
+        if parse_mode:
+            body["parse_mode"] = parse_mode
+        payload = json.dumps(body).encode("utf-8")
         request = urllib.request.Request(
             url, data=payload, headers={"Content-Type": "application/json"}, method="POST"
         )

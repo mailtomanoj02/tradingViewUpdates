@@ -4,11 +4,15 @@ Wraps yfinance with retry/backoff and shape validation, since it is an
 unofficial, scraped API that can throttle or return malformed/empty data
 without warning (see CLAUDE.md section 7). Every candle set returned here
 excludes the current, still-forming bar -- only confirmed/closed candles
-are ever handed to the strategy engine (CLAUDE.md section 2).
+are ever handed to a strategy engine (CLAUDE.md section 2).
 
-XAUUSD has no native 3-minute interval on Yahoo Finance, so it is built by
-resampling 1-minute bars (see CLAUDE.md section 3, "Yahoo/yfinance lookback
-caps").
+Each symbol has a *default* fetch recipe (interval / lookback period /
+resampling) tuned to the system that historically owned it -- EURUSD 5m
+and XAUUSD 3m for HalfTrend. A caller can override the recipe by passing
+`timeframe` (one of TIMEFRAME_FETCH's keys), which the Asia Sweep system
+uses to pull every pair at 1m regardless of the symbol's default
+(CLAUDE.md section 14). XAUUSD / "3m" has no native 3-minute interval on
+Yahoo, so it is built by resampling 1-minute bars.
 """
 
 import time
@@ -19,6 +23,13 @@ import yfinance as yf
 RETRY_ATTEMPTS = 3
 RETRY_BACKOFF_SECONDS = 5
 
+# Per-symbol static info + the DEFAULT fetch recipe (used when no explicit
+# `timeframe` is passed to fetch_candles). INSTRUMENTS is the HalfTrend set
+# ONLY (EURUSD 5m, XAUUSD 3m) -- several HalfTrend modules iterate it as
+# "the instruments this system watches", so it must stay exactly these
+# two. GBPUSD/AUDUSD live in ASIA_SWEEP_ONLY and are only ever reached
+# with an explicit timeframe. SYMBOL_INFO is the merged lookup used
+# internally for ticker / price_decimals.
 INSTRUMENTS = {
     "EURUSD": {
         "ticker": "EURUSD=X",
@@ -38,9 +49,53 @@ INSTRUMENTS = {
     },
 }
 
+ASIA_SWEEP_ONLY = {
+    "GBPUSD": {
+        "ticker": "GBPUSD=X",
+        "fetch_interval": "1m",
+        "fetch_period": "7d",
+        "fetch_interval_minutes": 1,
+        "candle_minutes": 1,
+        "price_decimals": 5,
+    },
+    "AUDUSD": {
+        "ticker": "AUDUSD=X",
+        "fetch_interval": "1m",
+        "fetch_period": "7d",
+        "fetch_interval_minutes": 1,
+        "candle_minutes": 1,
+        "price_decimals": 5,
+    },
+}
+
+SYMBOL_INFO = {**INSTRUMENTS, **ASIA_SWEEP_ONLY}
+
+# Explicit-timeframe fetch recipes. `fetch_interval`/`fetch_period` are what
+# we actually request from Yahoo; `candle_minutes` is the bar size we return
+# after any resampling. "3m" is built from 1m bars (no native 3m interval).
+TIMEFRAME_FETCH = {
+    "1m": {"fetch_interval": "1m", "fetch_period": "7d", "fetch_interval_minutes": 1, "candle_minutes": 1},
+    "3m": {"fetch_interval": "1m", "fetch_period": "7d", "fetch_interval_minutes": 1, "candle_minutes": 3},
+    "5m": {"fetch_interval": "5m", "fetch_period": "60d", "fetch_interval_minutes": 5, "candle_minutes": 5},
+}
+
 
 class MarketDataError(RuntimeError):
     """Raised when candle data cannot be fetched or is unusable."""
+
+
+def fetch_recipe(symbol, timeframe=None):
+    """The fetch recipe for `symbol`: the symbol's default, or the
+    TIMEFRAME_FETCH override when `timeframe` is given.
+    """
+    if symbol not in SYMBOL_INFO:
+        raise ValueError(f"Unknown symbol: {symbol}")
+    base = SYMBOL_INFO[symbol]
+    if timeframe is None:
+        return dict(base)
+    if timeframe not in TIMEFRAME_FETCH:
+        raise ValueError(f"Unknown timeframe: {timeframe}")
+    return {**base, **TIMEFRAME_FETCH[timeframe]}
 
 
 def _standardize(raw):
@@ -83,18 +138,20 @@ def resample_candles(df, candle_minutes):
     )
 
 
-def fetch_candles(symbol, lookback_bars=1000):
+def fetch_candles(symbol, lookback_bars=1000, timeframe=None):
     """Fetch the most recent `lookback_bars` confirmed/closed candles for `symbol`.
 
+    `timeframe` (e.g. "1m") overrides the symbol's default fetch recipe --
+    see TIMEFRAME_FETCH. When omitted, the symbol's INSTRUMENTS default is
+    used (EURUSD 5m, XAUUSD 3m, GBPUSD/AUDUSD 1m).
+
     Returns a DataFrame indexed by bar-open time (ascending, oldest first)
-    with open/high/low/close columns, ready for the HalfTrend engine.
+    with open/high/low/close columns, ready for a strategy engine.
     Raises MarketDataError if fewer than `lookback_bars` closed candles are
     available -- this is a loud failure by design (CLAUDE.md section 2):
     a short/degraded fetch must never be silently treated as "no signal".
     """
-    if symbol not in INSTRUMENTS:
-        raise ValueError(f"Unknown symbol: {symbol}")
-    cfg = INSTRUMENTS[symbol]
+    cfg = fetch_recipe(symbol, timeframe)
 
     raw = _fetch_with_retry(cfg["ticker"], cfg["fetch_period"], cfg["fetch_interval"])
     raw = drop_unclosed_bar(raw, cfg["fetch_interval_minutes"])
@@ -108,6 +165,6 @@ def fetch_candles(symbol, lookback_bars=1000):
     if len(candles) < lookback_bars:
         raise MarketDataError(
             f"{symbol}: only {len(candles)} closed {cfg['candle_minutes']}m candles available, "
-            f"need {lookback_bars} for a warmed-up HalfTrend signal"
+            f"need {lookback_bars} for a warmed-up signal"
         )
     return candles.iloc[-lookback_bars:]

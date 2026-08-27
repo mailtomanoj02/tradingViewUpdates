@@ -16,6 +16,12 @@ EURUSD_PIP = 0.0001
 EURUSD_DOLLAR_PER_PIP_PER_LOT = 10
 XAUUSD_DOLLAR_PER_POINT_PER_LOT = 100
 
+# USD-quoted FX majors: 1 standard lot = 100,000 units, pip = 0.0001,
+# $10 risk per pip per standard lot. The math is identical for all of
+# them precisely because the quote currency is USD (the account
+# currency assumed throughout -- CLAUDE.md section 4).
+PIP_SYMBOLS = {"EURUSD", "GBPUSD", "AUDUSD"}
+
 DEFAULT_ACCOUNT_SIZES = [6000.0, 10000.0, 25000.0]
 DEFAULT_RISK_PERCENTAGES = [0.5, 0.75, 1.0]
 
@@ -43,7 +49,7 @@ def _stop_loss_distance_and_dollar_risk_per_lot(symbol, entry, stop_loss):
     (CLAUDE.md section 6) -- not the raw price difference.
     """
     raw_distance = abs(entry - stop_loss)
-    if symbol == "EURUSD":
+    if symbol in PIP_SYMBOLS:
         pips = raw_distance / EURUSD_PIP
         return pips, pips * EURUSD_DOLLAR_PER_PIP_PER_LOT
     if symbol == "XAUUSD":

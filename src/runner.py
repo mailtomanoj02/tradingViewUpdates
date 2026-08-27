@@ -15,6 +15,7 @@ section 2's fail-loud rule). Only two outcomes here are treated as
 active signal on the latest closed candle.
 """
 
+from .alert_state import already_alerted, record_alert
 from .data_provider import fetch_candles
 from .email_alert import send_signal_alert
 from .halftrend import latest_signal, strategy_params
@@ -37,6 +38,11 @@ def run(symbol, timeframe, lookback_bars=DEFAULT_LOOKBACK_BARS):
         print(f"{symbol}: no signal on latest closed candle ({signal['signal_time']}). Source: {source}.")
         return
 
+    if already_alerted(symbol, signal["signal_time"]):
+        print(f"{symbol}: signal at {signal['signal_time']} was already alerted -- skipping duplicate send.")
+        return
+
     matrix = position_size_matrix(symbol, signal["entry"], signal["stop_loss"])
     subject, _ = send_signal_alert(signal, matrix, source)
+    record_alert(symbol, signal["signal_time"])
     print(f"{symbol}: sent '{subject}' (source: {source})")

@@ -19,6 +19,12 @@ def _lot_size(matrix, account_size, risk_percent):
         ("EURUSD", 1.0842, 1.0821, 25000, 1, 1.19),
         ("XAUUSD", 4602.30, 4608.10, 6000, 0.5, 0.05),
         ("XAUUSD", 4602.30, 4608.10, 25000, 1, 0.43),
+        # GBPUSD / AUDUSD are USD-quoted majors -- identical pip math to
+        # EURUSD, so the same 21-pip stop gives the same lot sizes.
+        ("GBPUSD", 1.0842, 1.0821, 6000, 0.5, 0.14),
+        ("GBPUSD", 1.0842, 1.0821, 25000, 1, 1.19),
+        ("AUDUSD", 1.0842, 1.0821, 6000, 0.5, 0.14),
+        ("AUDUSD", 1.0842, 1.0821, 25000, 1, 1.19),
     ],
 )
 def test_worked_examples_from_spec(
@@ -86,4 +92,4 @@ def test_zero_stop_distance_raises(monkeypatch):
 
 def test_unknown_symbol_raises():
     with pytest.raises(ValueError):
-        position_size_matrix("GBPUSD", 1.25, 1.24)
+        position_size_matrix("USDJPY", 155.20, 155.00)

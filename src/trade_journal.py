@@ -169,9 +169,12 @@ def compound_returns(pct_list):
     return (factor - 1) * 100
 
 
-def period_stats_and_returns(symbol, sub_ranges, risks):
+def period_stats_and_returns(symbol, sub_ranges, risks, path=None):
     """Combine several date sub-ranges (e.g. weeks within a month, months
     within a year) from the persisted log (journal_log.py) into one report.
+
+    `path` selects which persisted log to read -- defaults to the
+    HalfTrend log; the Asia Sweep journal passes its own file.
 
     sub_ranges: list of (label, start_date_str, end_date_str), each
     'YYYY-MM-DD' inclusive.
@@ -192,7 +195,7 @@ def period_stats_and_returns(symbol, sub_ranges, risks):
     all_trades = []
     sub_r_totals = []
     for label, start, end in sub_ranges:
-        trades = trades_in_range(symbol, start, end)
+        trades = trades_in_range(symbol, start, end, path=path)
         all_trades.extend(trades)
         sub_r_totals.append((label, aggregate_trades(trades)["r_total"]))
 
@@ -232,13 +235,13 @@ def week_ranges_in_month(year, month):
     return ranges
 
 
-def monthly_report(symbol, year, month, risks):
+def monthly_report(symbol, year, month, risks, path=None):
     """Monthly return per risk tier, compounded from that month's weekly returns."""
     sub_ranges = week_ranges_in_month(year, month)
-    return period_stats_and_returns(symbol, sub_ranges, risks)
+    return period_stats_and_returns(symbol, sub_ranges, risks, path=path)
 
 
-def yearly_report(symbol, year, risks):
+def yearly_report(symbol, year, risks, path=None):
     """Yearly return per risk tier, compounded from each month's (already
     week-compounded) monthly return -- a genuine two-level compound, not a
     flat sum of the whole year's trades.
@@ -253,8 +256,8 @@ def yearly_report(symbol, year, risks):
 
     for month in range(1, 13):
         sub_ranges = week_ranges_in_month(year, month)
-        overall, compounded, _ = period_stats_and_returns(symbol, sub_ranges, risks)
-        all_trades.extend(trades_in_range(symbol, sub_ranges[0][1], sub_ranges[-1][2]))
+        overall, compounded, _ = period_stats_and_returns(symbol, sub_ranges, risks, path=path)
+        all_trades.extend(trades_in_range(symbol, sub_ranges[0][1], sub_ranges[-1][2], path=path))
         for risk in risks:
             monthly_pct_by_risk[risk].append(compounded[risk])
         sub_period_returns.append((calendar.month_abbr[month], compounded[risks[0]]))
