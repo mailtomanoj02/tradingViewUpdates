@@ -340,5 +340,83 @@
         "r_multiple": -1.0
       }
     ]
+  },
+  {
+    "date": "2026-09-08",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "AUDUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 0.7208,
+        "stop_loss": 0.72048,
+        "target1": 0.72112,
+        "target2": 0.72144,
+        "target3": 0.72176,
+        "signal_time": "2026-09-08T09:39:00+00:00",
+        "close_time": "2026-09-08T12:29:00+00:00",
+        "final_exit": "TP3",
+        "outcome": "TP3 (full target)",
+        "wins_delta": 3,
+        "losses_delta": 0,
+        "r_multiple": 3.0
+      }
+    ]
+  },
+  {
+    "date": "2026-09-08",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-08",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "GBPUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 1.35319,
+        "stop_loss": 1.35284,
+        "target1": 1.3535399999999997,
+        "target2": 1.3538899999999996,
+        "target3": 1.3542399999999994,
+        "signal_time": "2026-09-08 08:32:00+00:00",
+        "close_time": "2026-09-08 08:42:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-09-08",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "XAUUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 4393.03,
+        "stop_loss": 4390.19,
+        "target1": 4395.87,
+        "target2": 4398.71,
+        "target3": 4401.55,
+        "signal_time": "2026-09-08 08:05:00+00:00",
+        "close_time": "2026-09-08 08:08:00+00:00",
+        "final_exit": "SL",
+        "outcome": "TP1 then Stop (scratch)",
+        "wins_delta": 0,
+        "losses_delta": 0,
+        "r_multiple": -1.0
+      }
+    ]
   }
 ]
