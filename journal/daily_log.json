@@ -672,5 +672,35 @@
     "symbol": "XAUUSD",
     "timeframe": "3m",
     "trades": []
+  },
+  {
+    "date": "2026-09-10",
+    "symbol": "EURUSD",
+    "timeframe": "5m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-10",
+    "symbol": "XAUUSD",
+    "timeframe": "3m",
+    "trades": [
+      {
+        "symbol": "XAUUSD",
+        "timeframe": "3m",
+        "direction": "LONG",
+        "entry": 4416.49,
+        "stop_loss": 4409.844802128612,
+        "target1": 4423.135197871387,
+        "target2": 4429.780395742775,
+        "target3": 4436.425593614162,
+        "signal_time": "2026-09-09T17:39:00+00:00",
+        "close_time": "2026-09-09T18:42:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
   }
 ]
