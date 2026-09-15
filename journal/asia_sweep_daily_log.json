@@ -604,5 +604,29 @@
     "symbol": "XAUUSD",
     "timeframe": "1m",
     "trades": []
+  },
+  {
+    "date": "2026-09-15",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-15",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-15",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-15",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": []
   }
 ]
