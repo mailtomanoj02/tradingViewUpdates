@@ -628,5 +628,47 @@
     "symbol": "XAUUSD",
     "timeframe": "1m",
     "trades": []
+  },
+  {
+    "date": "2026-09-16",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-16",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "EURUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 1.15359,
+        "stop_loss": 1.15338,
+        "target1": 1.1537999999999997,
+        "target2": 1.1540099999999995,
+        "target3": 1.1542199999999994,
+        "signal_time": "2026-09-16 11:25:00+00:00",
+        "close_time": "2026-09-16 12:19:00+00:00",
+        "final_exit": "SL",
+        "outcome": "TP1+TP2 then Stop",
+        "wins_delta": 1,
+        "losses_delta": 0,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-09-16",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-16",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": []
   }
 ]
