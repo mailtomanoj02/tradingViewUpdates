@@ -813,5 +813,65 @@
         "r_multiple": -1.0
       }
     ]
+  },
+  {
+    "date": "2026-09-24",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "AUDUSD",
+        "timeframe": "1m",
+        "direction": "SHORT",
+        "entry": 0.70374,
+        "stop_loss": 0.70451,
+        "target1": 0.7029700000000001,
+        "target2": 0.7022000000000002,
+        "target3": 0.7014300000000002,
+        "signal_time": "2026-09-24T08:15:00+00:00",
+        "close_time": "2026-09-24T15:06:00+00:00",
+        "final_exit": "TP3",
+        "outcome": "TP3 (full target)",
+        "wins_delta": 3,
+        "losses_delta": 0,
+        "r_multiple": 3.0
+      }
+    ]
+  },
+  {
+    "date": "2026-09-24",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "EURUSD",
+        "timeframe": "1m",
+        "direction": "SHORT",
+        "entry": 1.13914,
+        "stop_loss": 1.13992,
+        "target1": 1.13836,
+        "target2": 1.13758,
+        "target3": 1.1368,
+        "signal_time": "2026-09-24 08:15:00+00:00",
+        "close_time": "2026-09-24 10:15:00+00:00",
+        "final_exit": "TP3",
+        "outcome": "TP3 (full target)",
+        "wins_delta": 3,
+        "losses_delta": 0,
+        "r_multiple": 3.0
+      }
+    ]
+  },
+  {
+    "date": "2026-09-24",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-09-24",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": []
   }
 ]
