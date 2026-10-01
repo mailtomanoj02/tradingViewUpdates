@@ -1106,5 +1106,82 @@
         "r_multiple": -1.0
       }
     ]
+  },
+  {
+    "date": "2026-10-01",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "AUDUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 0.69412,
+        "stop_loss": 0.69351,
+        "target1": 0.69473,
+        "target2": 0.69534,
+        "target3": 0.69595,
+        "signal_time": "2026-10-01T08:26:00+00:00",
+        "close_time": "2026-10-01T08:53:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      },
+      {
+        "symbol": "AUDUSD",
+        "timeframe": "1m",
+        "direction": "SHORT",
+        "entry": 0.69514,
+        "stop_loss": 0.69556,
+        "target1": 0.69472,
+        "target2": 0.6943,
+        "target3": 0.69388,
+        "signal_time": "2026-10-01T12:08:00+00:00",
+        "close_time": "2026-10-01T12:46:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-10-01",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-01",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "GBPUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 1.32293,
+        "stop_loss": 1.32224,
+        "target1": 1.3236199999999998,
+        "target2": 1.3243099999999997,
+        "target3": 1.3249999999999995,
+        "signal_time": "2026-10-01 08:26:00+00:00",
+        "close_time": "2026-10-01 08:32:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-10-01",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": []
   }
 ]
