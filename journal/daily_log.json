@@ -954,5 +954,17 @@
     "symbol": "XAUUSD",
     "timeframe": "3m",
     "trades": []
+  },
+  {
+    "date": "2026-10-05",
+    "symbol": "EURUSD",
+    "timeframe": "5m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-05",
+    "symbol": "XAUUSD",
+    "timeframe": "3m",
+    "trades": []
   }
 ]
