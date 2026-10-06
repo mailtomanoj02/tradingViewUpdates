@@ -1338,5 +1338,29 @@
         "r_multiple": 3.0
       }
     ]
+  },
+  {
+    "date": "2026-10-06",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-06",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-06",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-06",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": []
   }
 ]
