@@ -1065,12 +1065,42 @@
         "target1": 4174.376134053389,
         "target2": 4177.10226810678,
         "target3": 4179.828402160169,
-        "signal_time": "2026-10-12T20:57:00+00:00",
-        "close_time": "2026-10-12T22:57:00+00:00",
+        "signal_time": "2026-10-12 20:57:00+00:00",
+        "close_time": "2026-10-12 22:57:00+00:00",
         "final_exit": "SL",
         "outcome": "TP1 then Stop (scratch)",
         "wins_delta": 0,
         "losses_delta": 0,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-10-14",
+    "symbol": "EURUSD",
+    "timeframe": "5m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-14",
+    "symbol": "XAUUSD",
+    "timeframe": "3m",
+    "trades": [
+      {
+        "symbol": "XAUUSD",
+        "timeframe": "3m",
+        "direction": "LONG",
+        "entry": 4165.055,
+        "stop_loss": 4161.113591756871,
+        "target1": 4168.99640824313,
+        "target2": 4172.937816486259,
+        "target3": 4176.879224729389,
+        "signal_time": "2026-10-13T19:24:00+00:00",
+        "close_time": "2026-10-13T20:15:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
         "r_multiple": -1.0
       }
     ]
