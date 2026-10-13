@@ -1488,5 +1488,83 @@
     "symbol": "XAUUSD",
     "timeframe": "1m",
     "trades": []
+  },
+  {
+    "date": "2026-10-13",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-13",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "EURUSD",
+        "timeframe": "1m",
+        "direction": "SHORT",
+        "entry": 1.11896,
+        "stop_loss": 1.11976,
+        "target1": 1.1181599999999998,
+        "target2": 1.1173599999999997,
+        "target3": 1.1165599999999996,
+        "signal_time": "2026-10-13 13:04:00+00:00",
+        "close_time": "2026-10-13 13:19:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-10-13",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "GBPUSD",
+        "timeframe": "1m",
+        "direction": "SHORT",
+        "entry": 1.3234,
+        "stop_loss": 1.32408,
+        "target1": 1.32272,
+        "target2": 1.3220399999999999,
+        "target3": 1.3213599999999999,
+        "signal_time": "2026-10-13 08:42:00+00:00",
+        "close_time": "2026-10-13 09:09:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-10-13",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "XAUUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 4153.75,
+        "stop_loss": 4150.29,
+        "target1": 4157.21,
+        "target2": 4160.67,
+        "target3": 4164.13,
+        "signal_time": "2026-10-13 17:06:00+00:00",
+        "close_time": "2026-10-13 17:49:00+00:00",
+        "final_exit": "SL",
+        "outcome": "TP1 then Stop (scratch)",
+        "wins_delta": 0,
+        "losses_delta": 0,
+        "r_multiple": -1.0
+      }
+    ]
   }
 ]
