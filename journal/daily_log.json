@@ -1137,8 +1137,8 @@
         "target1": 4163.010007872696,
         "target2": 4167.755015745393,
         "target3": 4172.5000236180895,
-        "signal_time": "2026-10-15T18:45:00+00:00",
-        "close_time": "2026-10-15T19:48:00+00:00",
+        "signal_time": "2026-10-15 18:45:00+00:00",
+        "close_time": "2026-10-15 19:48:00+00:00",
         "final_exit": "TP3",
         "outcome": "TP3 (full target)",
         "wins_delta": 3,
@@ -1146,5 +1146,17 @@
         "r_multiple": 3.0
       }
     ]
+  },
+  {
+    "date": "2026-10-19",
+    "symbol": "EURUSD",
+    "timeframe": "5m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-19",
+    "symbol": "XAUUSD",
+    "timeframe": "3m",
+    "trades": []
   }
 ]
