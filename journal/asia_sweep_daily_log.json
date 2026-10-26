@@ -2010,5 +2010,65 @@
         "r_multiple": -1.0
       }
     ]
+  },
+  {
+    "date": "2026-10-26",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-26",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-26",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "GBPUSD",
+        "timeframe": "1m",
+        "direction": "LONG",
+        "entry": 1.33612,
+        "stop_loss": 1.33531,
+        "target1": 1.33693,
+        "target2": 1.33774,
+        "target3": 1.33855,
+        "signal_time": "2026-10-26 08:08:00+00:00",
+        "close_time": "2026-10-26 08:33:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
+  },
+  {
+    "date": "2026-10-26",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": [
+      {
+        "symbol": "XAUUSD",
+        "timeframe": "1m",
+        "direction": "SHORT",
+        "entry": 4015.625,
+        "stop_loss": 4018.255,
+        "target1": 4012.995,
+        "target2": 4010.365,
+        "target3": 4007.7349999999997,
+        "signal_time": "2026-10-26 09:10:00+00:00",
+        "close_time": "2026-10-26 09:35:00+00:00",
+        "final_exit": "SL",
+        "outcome": "Direct Stop Loss",
+        "wins_delta": 0,
+        "losses_delta": 1,
+        "r_multiple": -1.0
+      }
+    ]
   }
 ]
