@@ -2085,8 +2085,8 @@
         "target1": 0.7029199999999999,
         "target2": 0.7026699999999998,
         "target3": 0.7024199999999997,
-        "signal_time": "2026-10-27T10:54:00+00:00",
-        "close_time": "2026-10-27T10:57:00+00:00",
+        "signal_time": "2026-10-27 10:54:00+00:00",
+        "close_time": "2026-10-27 10:57:00+00:00",
         "final_exit": "SL",
         "outcome": "Direct Stop Loss",
         "wins_delta": 0,
@@ -2164,5 +2164,29 @@
         "r_multiple": -1.0
       }
     ]
+  },
+  {
+    "date": "2026-10-28",
+    "symbol": "AUDUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-28",
+    "symbol": "EURUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-28",
+    "symbol": "GBPUSD",
+    "timeframe": "1m",
+    "trades": []
+  },
+  {
+    "date": "2026-10-28",
+    "symbol": "XAUUSD",
+    "timeframe": "1m",
+    "trades": []
   }
 ]
